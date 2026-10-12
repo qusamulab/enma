@@ -86,7 +86,7 @@ uv run mkdocs build --strict       # render to site/
 ## Adding a new agent
 
 1. Create `src/enma/agents/{category}/{name}_agent.js`.
-2. Add **one row** to `_AGENTS` in [`core/agents.py`](https://github.com/ykus4/enma/blob/main/src/enma/core/agents.py),
+2. Add **one row** to `_AGENTS` in [`core/agents.py`](https://github.com/qusamulab/enma/blob/main/src/enma/core/agents.py),
    tagging it with `TAG_DUMP` (included in a bare `enma dump`), `TAG_UE4`, and/or `TAG_MEM`:
 
     ```python

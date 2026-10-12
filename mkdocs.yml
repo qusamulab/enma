@@ -1,8 +1,8 @@
 site_name: enma
 site_description: Frida-based Android security research toolkit
-site_url: https://ykus4.github.io/enma
-repo_url: https://github.com/ykus4/enma
-repo_name: ykus4/enma
+site_url: https://qusamulab.github.io/enma
+repo_url: https://github.com/qusamulab/enma
+repo_name: qusamulab/enma
 edit_uri: edit/main/docs/
 
 theme:
