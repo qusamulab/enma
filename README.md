@@ -4,7 +4,7 @@ A [Frida](https://frida.re)-based Android security research toolkit for extracti
 
 > **Intended use**: penetration testing, CTF challenges, security research, and reverse engineering of apps you own or have explicit permission to analyze.
 
-**📖 Full documentation: <https://ykus4.github.io/enma>**
+**📖 Full documentation: <https://qusamulab.github.io/enma>**
 
 ---
 
@@ -13,7 +13,7 @@ A [Frida](https://frida.re)-based Android security research toolkit for extracti
 Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), ADB in `PATH`, and a rooted device or emulator.
 
 ```bash
-git clone https://github.com/ykus4/enma
+git clone https://github.com/qusamulab/enma
 cd enma
 uv sync
 ```
@@ -32,11 +32,11 @@ uv run enma report ./dump                    # → dump/report.html
 
 | Page | Contents |
 |---|---|
-| [Subcommands](https://ykus4.github.io/enma/subcommands/) | Every CLI command, with flags and examples |
-| [Agent Reference](https://ykus4.github.io/enma/agents/) | What each of the 25 JS agents hooks and emits |
-| [Output Files](https://ykus4.github.io/enma/output-files/) | What lands in the dump directory |
-| [Architecture](https://ykus4.github.io/enma/architecture/) | System design, data flow, hook layers |
-| [Development](https://ykus4.github.io/enma/development/) | Project layout, tests, adding an agent |
+| [Subcommands](https://qusamulab.github.io/enma/subcommands/) | Every CLI command, with flags and examples |
+| [Agent Reference](https://qusamulab.github.io/enma/agents/) | What each of the 25 JS agents hooks and emits |
+| [Output Files](https://qusamulab.github.io/enma/output-files/) | What lands in the dump directory |
+| [Architecture](https://qusamulab.github.io/enma/architecture/) | System design, data flow, hook layers |
+| [Development](https://qusamulab.github.io/enma/development/) | Project layout, tests, adding an agent |
 
 Docs live in [`docs/`](docs/) and are built with MkDocs:
 
@@ -52,7 +52,7 @@ uv run ruff check src/ tests/
 uv run pytest
 ```
 
-See the [Development guide](https://ykus4.github.io/enma/development/) for the project layout and how to add an agent.
+See the [Development guide](https://qusamulab.github.io/enma/development/) for the project layout and how to add an agent.
 
 ---
 

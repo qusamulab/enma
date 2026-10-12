@@ -33,7 +33,7 @@ Analysis degrades gracefully when these are missing — each step is skipped wit
 ## Installation
 
 ```bash
-git clone https://github.com/ykus4/enma
+git clone https://github.com/qusamulab/enma
 cd enma
 uv sync
 ```
