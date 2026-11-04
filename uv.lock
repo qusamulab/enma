@@ -245,14 +245,14 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "frida", specifier = ">=17.24.3" },
-    { name = "frida-tools", specifier = ">=14.10.4" },
+    { name = "frida-tools", specifier = ">=14.11.0" },
     { name = "unitypy", marker = "extra == 'unity'", specifier = ">=1.10.0" },
 ]
 provides-extras = ["unity"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pre-commit", specifier = ">=4.6.2" },
+    { name = "pre-commit", specifier = ">=4.7.0" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "ruff", specifier = ">=0.16.7" },
     { name = "unitypy", specifier = ">=1.10.0" },
@@ -355,7 +355,7 @@ wheels = [
 
 [[package]]
 name = "frida-tools"
-version = "14.10.4"
+version = "14.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama" },
@@ -364,7 +364,7 @@ dependencies = [
     { name = "pygments" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/80/5e/4592b8005bb5126642c80dfa7ea7a1ab81fd8c232fa03e20374216c04831/frida_tools-14.10.4.tar.gz", hash = "sha256:7a2c544b545d095040fffbd3768a287a426343dad89095b4a24f4b20382d926a", size = 4690392, upload-time = "2026-06-25T00:16:09.892Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/32/74291d04038ead2a361c7464e707ef935cb75a1011ee5d1e220c2849d39e/frida_tools-14.11.0.tar.gz", hash = "sha256:b8c772e59502be43b76df9feccadd5d342b5ca325066dd0c2384e63fa88da921", size = 4690429, upload-time = "2026-10-03T07:42:44.812Z" }
 
 [[package]]
 name = "fsspec"
@@ -741,7 +741,7 @@ wheels = [
 
 [[package]]
 name = "pre-commit"
-version = "4.6.2"
+version = "4.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cfgv" },
@@ -750,9 +750,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "virtualenv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/89/1f3e8e1fc3e97de0fa963495832f581f025f29471602a309e48808244292/pre_commit-4.6.2.tar.gz", hash = "sha256:8f5d7bfb021ecdbcd9d49d89847082dd24172ccde534390081a679ad046e2441", size = 198670, upload-time = "2026-08-10T22:07:18.421Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/c3/6965c2690ddce885ec75121572d065a5b94c5a5d8d3e657927ecda9fd715/pre_commit-4.7.0.tar.gz", hash = "sha256:1f3deee12b914c8fa184bd2b5953391c2e4f36763e403d4a23dc9983fa7c6e86", size = 198120, upload-time = "2026-10-12T20:45:40.32Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/e2/bbb7129c9e7999a6b8ee9cca3b66486c25c423ab5a75f34071798b74ce94/pre_commit-4.6.2-py2.py3-none-any.whl", hash = "sha256:e2dde9a75d3bce11bd3831c26d134df00a2803c1d818be6a0383c3dcda25dc4e", size = 226202, upload-time = "2026-08-10T22:07:16.942Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/83/ce0a196e4f7b20b11ce3aa1fc72fb973f64b7628d51c1b8aebad37fb7f81/pre_commit-4.7.0-py2.py3-none-any.whl", hash = "sha256:2e229038ad3656081b70c27913157e4b636ef306f643f024a8a8e3f0f7b2f877", size = 226261, upload-time = "2026-10-12T20:45:38.858Z" },
 ]
 
 [[package]]
