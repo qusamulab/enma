@@ -84,3 +84,15 @@ def test_render_report_honors_custom_json_and_output(
 def test_render_report_missing_json_raises(dump_dir: Path) -> None:
     with pytest.raises(FileNotFoundError, match="report.json not found"):
         render_report(str(dump_dir))
+
+
+def test_app_data_is_escaped_in_html(tmp_path: Path) -> None:
+    payload = "<script>alert(1)</script>"
+    report = {
+        "ios_app": {"name": payload, "modules": [{"name": payload}]},
+        "unknown": {"value": payload},
+        "http": {"unique_hosts": [payload]},
+    }
+    html = generate_html(report, tmp_path / payload.replace("/", "_"))
+    assert payload not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html

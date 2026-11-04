@@ -15,6 +15,7 @@ from typing import Any
 import frida
 
 from enma.core.agents import load_agent
+from enma.core.scripts import prepare_source
 from enma.core.session import connect
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def _start_agent(args: Any, name: str) -> tuple[frida.core.Session, Any]:
     """Attach to the target, inject *name*, and return (session, rpc exports)."""
     logger.info("Attaching …")
     _device, session = connect(args)
-    script = session.create_script(load_agent(name))
+    script = session.create_script(prepare_source(load_agent(name)))
 
     def on_message(msg: dict, _data: bytes | None) -> None:
         if msg["type"] == "error":
@@ -158,6 +159,14 @@ def run_memscan(args: Any) -> None:
 
 def run_mempatch(args: Any) -> None:
     session, rpc = _start_agent(args, "mempatch")
+    try:
+        _patch(args, rpc)
+    finally:
+        with contextlib.suppress(Exception):
+            session.detach()
+
+
+def _patch(args: Any, rpc: Any) -> None:
     addr = args.addr
 
     if args.nop:
@@ -211,6 +220,3 @@ def run_mempatch(args: Any) -> None:
             logger.error("%s", res["error"])
             sys.exit(1)
         print(f"  {res['addr']}  =  {res['value']}  ({t})")
-
-    with contextlib.suppress(Exception):
-        session.detach()

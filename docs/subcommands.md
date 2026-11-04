@@ -1,238 +1,146 @@
-# Subcommands
+# コマンド一覧
 
-## `setup` — Deploy frida-server
+迷ったら [使い始める](index.md) の手順を実行してください。
+全引数は `uv run enma COMMAND --help` で確認できます。
+`--verbose` は全コマンドで利用でき、コマンドの前後どちらにも指定できます。
 
-```bash
-uv run enma setup
-uv run enma setup -s R3CN30XXXXX   # specify device serial
-uv run enma setup --force          # force re-push
-```
+## 接続の共通オプション
 
-Detects device ABI, downloads the matching `frida-server` from GitHub releases,
-pushes it to `/data/local/tmp/frida-server`, and starts it via `su`.
-Downloaded binaries are cached in `~/.cache/enma/`.
+`dump`、`ue4`、`memscan`、`mempatch` に共通です。
 
----
+| オプション | 意味 |
+|---|---|
+| `TARGET` | Android パッケージ、iOS Bundle ID、プロセス名、または PID |
+| `-s ID` / `--serial ID` | Frida の端末 ID。Android シリアルまたは iOS UDID |
+| `--host HOST:PORT` | TCP の frida-server／Gadget。`-s` と同時指定不可 |
+| `--platform auto/android/ios` | 既定は OS 自動判定。Gadget 等で必要なときに上書き |
+| `--spawn` | アプリを起動して接続 |
+| `--watch` | アプリが起動するまで待って接続 |
 
-## `list` — Enumerate apps
+`list` は `-s` と `--host` に対応します。OS の制約は [対応範囲](platforms.md) を参照してください。
+
+## list — アプリ一覧
 
 ```bash
 uv run enma list
-uv run enma list -s <serial>
+uv run enma list -s DEVICE_ID
+uv run enma list --host 127.0.0.1:27042
 ```
 
-```
-  com.example.game           My Game  [PID 12345]
-  com.example.another        Another App
-```
+識別子、アプリ名、実行中の場合は PID を表示します。
 
----
-
-## `dump` — Run agents
+## dump — ランタイム情報の収集
 
 ```bash
-uv run enma dump <target> [options]
+uv run enma dump com.example.app -t dex http -o ./dump --timeout 30
+uv run enma dump com.example.iosapp -t ios_app ios_http sqlite -o ./ios-dump
 ```
 
-| Option | Description |
+| オプション | 意味 |
 |---|---|
-| `-t TYPE [TYPE …]` | Run specific agents only (default: all) |
-| `-o DIR` | Output directory (default: `./dump`) |
-| `-s SERIAL` | ADB device serial |
-| `--spawn` | Spawn the app instead of attaching |
-| `--watch` | Wait for the process to start, then attach |
-| `--retry` | Re-attach automatically when the process dies |
-| `--timeout N` | Auto-detach after N seconds |
+| `-t TYPE [TYPE …]` | 使用するエージェント。省略時は OS に対応する全種類 |
+| `-o DIR` | 収集先。既定は `./dump` |
+| `--timeout SECONDS` | 指定秒数で終了。既定の `0` は Ctrl+C まで実行 |
+| `--retry` | 対象プロセス終了後に再接続を試みる。Ctrl+C／タイムアウトでは終了 |
+
+収集中にアプリを操作してください。結果は [出力ファイル](output-files.md) に保存します。
+エージェントごとの内容は [エージェント一覧](agents.md) を参照してください。
+
+## analyze — オフライン解析
 
 ```bash
-# All agents
-uv run enma dump com.example.game
-
-# Selected agents
-uv run enma dump com.example.game -t dex il2cpp jni crypto
-
-# Bypass agents only (stealth mode)
-uv run enma dump com.example.game -t ssl anti_detect anti_tamper safetynet
-
-# Spawn + custom output + timeout
-uv run enma dump com.example.game --spawn -o ./out --timeout 60
+uv run enma analyze ./dump
+uv run enma analyze ./dump -o ./analysis.json
 ```
 
-**Available agent types:**
+収集済みファイルを解析し、既定では収集先に `report.json` を生成します。
+端末への接続は不要です。任意の外部ツールがない場合は該当処理をスキップします。
 
-| Category | Agents |
-|---|---|
-| Dump | `dex` `il2cpp` `assets` `mono` `heap` |
-| Analysis | `coverage` `tracer` `jni` |
-| Bypass | `ssl` `crypto` `anti_detect` `anti_tamper` `safetynet` |
-| Network | `http` `websocket` `protobuf` `binder` |
-| Storage | `sqlite` `fileio` `dlopen` |
-
----
-
-## `analyze` — Post-dump analysis
+## report — HTML レポート
 
 ```bash
-uv run enma analyze <dump_dir>
-uv run enma analyze ./dump -o custom_report.json
+uv run enma report ./dump
+uv run enma report ./dump --json ./analysis.json -o ./report.html
 ```
 
-Reads all artifact files in the dump directory, runs optional external tools, and writes `report.json`.
+既定では `./dump/report.json` を読み、`./dump/report.html` に出力します。
+CSS・JavaScript は HTML に含まれるため、単一ファイルで閲覧できます。
 
-What it covers:
-- DEX obfuscation ratio + jadx decompilation
-- IL2CPP method/field counts + security-relevant method flagging
-- JNI mappings by native module
-- Crypto key and heap key candidate summary
-- Native `.so` URL / JWT string extraction
-- TLS, HTTP, WebSocket, SQLite, Binder, File I/O, Protobuf summaries
-- dlopen load log, code coverage, anti-tamper bypass log
+## memscan — メモリ値の検索
 
----
-
-## `report` — HTML report
+Android・iOS 共通です。対象を指定すると対話プロンプトが開きます。
 
 ```bash
-uv run enma report <dump_dir>
-uv run enma report ./dump --json custom.json -o out.html
+uv run enma memscan com.example.app
 ```
 
-Converts `report.json` into a self-contained dark-theme HTML report with:
-- Summary stat cards
-- Collapsible sections per category
-- Color-coded severity badges (high / med / low / info)
-
----
-
-## `repack` — frida-gadget injection (no root)
-
-```bash
-uv run enma repack app.apk
-uv run enma repack app.apk -o app-gadget.apk --arch arm64
+```text
+scan 100 int32
+filter 90 eq
+results 20
+read 0x12345678 int32
+info
+reset
+quit
 ```
 
-| Option | Description |
-|---|---|
-| `-o PATH` | Output APK path |
-| `--arch` | `arm64` (default) / `arm` / `x86_64` / `x86` |
-| `--keep-workdir` | Keep the intermediate smali directory |
+型は整数、符号なし整数、`float`、`double`、`bytes`。
+絞り込みは `eq`、`ne`、`gt`、`lt`、`gte`、`lte`、`changed`、`unchanged` です。
 
-Requires on `PATH`: `apktool`, `zipalign`, and `apksigner` (Android build-tools) or `jarsigner` (JDK).
+## mempatch — メモリの読み書き
 
-Pipeline:
-1. Download `frida-gadget-{ver}-android-{arch}.so.xz` → cached in `~/.cache/enma/`
-2. `apktool d` — decode APK
-3. Copy gadget `.so` to `lib/{arch}/`
-4. Inject a smali `Application` subclass that calls `System.loadLibrary("frida-gadget")`
-5. `apktool b` → zipalign → sign with debug keystore
-
-After installing the repacked APK, frida-gadget listens on port 27042 and acts as a standard frida-server.
-
----
-
-## `unity` — Extract AssetBundles
+Android・iOS 共通です。`-v` はこのコマンドでは書き込み値です。
+詳細ログには長い形式の `--verbose` を使ってください。
 
 ```bash
-uv run enma unity <dump_dir>
+uv run enma mempatch com.example.app 0x12345678 -t int32
+uv run enma mempatch com.example.app 0x12345678 -t int32 -v 100
+uv run enma mempatch com.example.app 0x12345678 --bytes DE AD BE EF
+uv run enma mempatch com.example.app 0x12345678 --nop 4
+uv run enma mempatch com.example.app 0x12345678 -v 100 --freeze --interval 100
+```
+
+`--freeze` は指定値をミリ秒単位の間隔で書き戻します。Ctrl+C で停止します。
+
+## setup — frida-server の配置（Android）
+
+```bash
+uv run enma setup
+uv run enma setup -s ANDROID_SERIAL --force
+```
+
+ABI に合うサーバーを取得し、ADB と `su` で `/data/local/tmp/frida-server` に配置して起動します。
+`--force` は再配置を強制します。キャッシュは `~/.cache/enma/` です。
+iOS の準備は [iOS](platforms.md#ios) を参照してください。
+
+## repack — APK への Gadget 組み込み（Android）
+
+```bash
+uv run enma repack app.apk --arch arm64 -o app-gadget.apk
+```
+
+`apktool`、`zipalign`、`keytool`、`apksigner` または `jarsigner` が必要です。
+APK を展開して Gadget を組み込み、デバッグキーで再署名します。
+`--arch` は `arm64`、`arm`、`x86_64`、`x86`。`--keep-workdir` で中間ファイルを残せます。
+元の署名は引き継がれません。IPA のリパックには対応していません。
+
+## unity — AssetBundle の展開
+
+```bash
+uv sync --extra unity
 uv run enma unity ./dump -o ./extracted
 ```
 
-Requires the `enma[unity]` extra (see [Installation](index.md#installation)).
+収集済みの `.unity3d` ファイルを UnityPy で読み、画像・テキスト・音声等を展開します。
+既定の出力先は収集ディレクトリ内の `unity_extracted/` です。
 
-Extracts from every `.unity3d` bundle in the dump directory:
-
-| Asset type | Output |
-|---|---|
-| `Texture2D` | PNG |
-| `AudioClip` | WAV / OGG |
-| `TextAsset` | `.txt` / `.bytes` |
-| `Sprite` | PNG |
-| `MonoBehaviour` | JSON (via typetree) |
-
----
-
-## `memscan` — Memory value scanner
-
-Interactive CheatEngine-style REPL for locating values in process memory.
+## ue4 — Unreal Engine 4 の解析（Android）
 
 ```bash
-uv run enma memscan com.example.game
-uv run enma memscan com.example.game --spawn
+uv run enma ue4 com.example.game -t ue4_sdk ue4_pak -o ./dump
 ```
 
-```
-memscan> scan 9999 int32          # first scan — find all addresses = 9999
-[*] Scan #1: 48,302 results
-
-# change the value in-game (e.g. spend coins, take damage)
-
-memscan> filter 9990 eq           # narrow to addresses now = 9990
-[*] Scan #2: 3 results remaining
-
-memscan> results
-  0x7ff1a2b4  =  9990
-  0x7ff3c100  =  9990
-  0x7ff3c104  =  9990
-
-memscan> read 0x7ff1a2b4 int32    # confirm the value
-  0x7ff1a2b4  =  9990
-```
-
-**Commands:**
-
-| Command | Description |
-|---|---|
-| `scan <value> [type]` | First scan — search all readable memory |
-| `filter <value> [op]` | Narrow results by comparison operator |
-| `results [max]` | Show current result list |
-| `read <addr> <type>` | Read a single value |
-| `reset` | Clear all results and start over |
-| `info` | Show scan state (type, scan count, result count) |
-| `help` | Show command reference |
-| `quit` / `exit` | Detach and exit |
-
-**Supported types:** `int8` `int16` `int32` `int64` `uint8` `uint16` `uint32` `uint64` `float` `double` `bytes`
-
-**Filter operators:** `eq` `ne` `gt` `lt` `gte` `lte` `changed` `unchanged`
-
----
-
-## `mempatch` — Memory write / freeze
-
-```bash
-uv run enma mempatch com.example.game <addr> [options]
-```
-
-| Option | Description |
-|---|---|
-| `-t TYPE` | Value type (default: `int32`) |
-| `-v VALUE` | Value to write |
-| `--nop N` | Write N NOP instructions (arch-aware: arm64 / arm / x86) |
-| `--bytes HEX …` | Write raw bytes, e.g. `--bytes DE AD BE EF` |
-| `--freeze` | Continuously overwrite the value (Ctrl+C to stop) |
-| `--interval MS` | Freeze interval in ms (default: 100) |
-
-!!! note "`-v` on `mempatch`"
-    Every other subcommand accepts `-v` as a shorthand for `--verbose`. On `mempatch`,
-    `-v` is `--value`, so debug logging is available only as the long `--verbose`.
-    Because both now exist here, the abbreviation `--v` has become ambiguous — write
-    `-v` / `--value` or `--verbose` in full.
-
-```bash
-# Write a value once
-uv run enma mempatch com.example.game 0x7ff1a2b4 -t int32 -v 99999
-
-# Freeze a float value (e.g. player speed)
-uv run enma mempatch com.example.game 0x7ff3c100 -t float -v 9999.0 --freeze
-
-# NOP out 4 instructions (e.g. disable a check)
-uv run enma mempatch com.example.game 0x7ff00100 --nop 4
-
-# Raw byte patch
-uv run enma mempatch com.example.game 0x7ff00200 --bytes 00 00 A0 E3
-```
-
-> **Tip**: use `memscan` to locate the address first, then `mempatch` to write to it.
-
----
-
+`-t` を省略すると UE4 エージェントをすべて読み込みます。
+`--gnames`、`--gobjects`、`--process-event` で既知のアドレスを指定できます。
+`--extract-pak` は収集後にホストで読み出せる PAK を `u4pak` で展開します。
+デバイス上のパスだけでは、ホストからファイルを読めません。

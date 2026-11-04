@@ -1,16 +1,14 @@
 # enma
 
-A [Frida](https://frida.re)-based Android security research toolkit for extracting and analyzing runtime artifacts — DEX files, IL2CPP binaries, Unity assets, crypto keys, network traffic, and more.
+[Frida](https://frida.re) を使う Android・iOS ランタイム解析ツール。
+アプリから実行時の情報を収集し、JSON と HTML レポートにまとめます。
+所有する、または解析の許可を得たアプリを対象にしてください。
 
-> **Intended use**: penetration testing, CTF challenges, security research, and reverse engineering of apps you own or have explicit permission to analyze.
+**[ドキュメント](https://qusamulab.github.io/enma/) · [Android・iOS の準備](docs/platforms.md) · [コマンド一覧](docs/subcommands.md)**
 
-**📖 Full documentation: <https://qusamulab.github.io/enma>**
+## インストール
 
----
-
-## Install
-
-Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), ADB in `PATH`, and a rooted device or emulator.
+Python 3.12 以降と [uv](https://docs.astral.sh/uv/) が必要です。
 
 ```bash
 git clone https://github.com/qusamulab/enma
@@ -18,47 +16,43 @@ cd enma
 uv sync
 ```
 
-## Quick start
+Android は ADB と root 化済み端末／エミュレーターを用意し、`uv run enma setup` を実行します。
+iOS は Frida 対応の脱獄端末、または自分で Gadget を組み込んだアプリを用意します。
+[OS 別の手順と対応範囲](docs/platforms.md) を先に確認してください。
+
+## 収集してレポートを見る
 
 ```bash
-uv run enma setup                            # push frida-server to the device
-uv run enma list                             # find the target package
-uv run enma dump com.example.game -o ./dump  # run the agents
-uv run enma analyze ./dump                   # post-dump analysis
-uv run enma report ./dump                    # → dump/report.html
+uv run enma list
+
+# Android：起動済みアプリから収集
+uv run enma dump com.example.app -t dex http sqlite -o ./dump --timeout 30
+
+# iOS：必要なエージェントを選択
+uv run enma dump com.example.iosapp -t ios_app ios_http sqlite -o ./dump --timeout 30
+
+uv run enma analyze ./dump
+uv run enma report ./dump
+# ./dump/report.html をブラウザーで開く
 ```
 
-## Documentation
+OS は自動判定します。`-t` を省略すると、その OS に対応する全エージェントを実行します。
+iOS の HTTP 収集は NSURLSession の URL・メソッドが対象で、本文・レスポンスは含みません。
+DEX、APK リパック、UE4 などは Android 専用です。iOS 実機での検証は別途必要です。
 
-| Page | Contents |
-|---|---|
-| [Subcommands](https://qusamulab.github.io/enma/subcommands/) | Every CLI command, with flags and examples |
-| [Agent Reference](https://qusamulab.github.io/enma/agents/) | What each of the 25 JS agents hooks and emits |
-| [Output Files](https://qusamulab.github.io/enma/output-files/) | What lands in the dump directory |
-| [Architecture](https://qusamulab.github.io/enma/architecture/) | System design, data flow, hook layers |
-| [Development](https://qusamulab.github.io/enma/development/) | Project layout, tests, adding an agent |
-
-Docs live in [`docs/`](docs/) and are built with MkDocs:
+## 開発・ドキュメント
 
 ```bash
 uv sync --group docs
+uv run ruff check src/ tests/
+uv run ruff format --check src/ tests/
+uv run pytest
+node --test tests/agents.test.cjs
+uv run mkdocs build --strict
 uv run mkdocs serve
 ```
 
-## Development
+[開発ガイド](docs/development.md) · [構成とデータの流れ](docs/architecture.md) · [困ったとき](docs/troubleshooting.md)
 
-```bash
-uv run ruff check src/ tests/
-uv run pytest
-```
-
-See the [Development guide](https://qusamulab.github.io/enma/development/) for the project layout and how to add an agent.
-
----
-
-## Disclaimer
-
-Use only against apps you own or have explicit written authorization to analyze.
-Dumped files may contain sensitive cryptographic material — handle with care.
-
-Licensed under the [MIT License](LICENSE).
+収集ファイルには暗号キー等の機密情報が含まれる場合があります。適切に管理してください。
+[MIT License](LICENSE)

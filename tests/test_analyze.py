@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from enma import analyze
-from enma.analyze import _count_by, _load_json, analyze_dump
+from enma.analyze import analyze_dump, binaries, events, ue4
+from enma.analyze.helpers import _count_by, _load_json
 
 # The `write_artifact` fixture from conftest.
 WriteArtifact = Callable[[str, object], Path]
@@ -53,7 +54,7 @@ def test_analyze_jni(dump_dir: Path, write_artifact: WriteArtifact) -> None:
         [{"module": "libfoo.so"}, {"module": "libfoo.so"}, {"module": "libbar.so"}],
     )
     report: dict = {}
-    analyze._analyze_jni(dump_dir, report)
+    events._analyze_jni(dump_dir, report)
     assert report["jni"] == {
         "total_mappings": 3,
         "by_module": {"libfoo.so": 2, "libbar.so": 1},
@@ -62,14 +63,14 @@ def test_analyze_jni(dump_dir: Path, write_artifact: WriteArtifact) -> None:
 
 def test_analyze_jni_absent_adds_no_key(dump_dir: Path) -> None:
     report: dict = {}
-    analyze._analyze_jni(dump_dir, report)
+    events._analyze_jni(dump_dir, report)
     assert "jni" not in report
 
 
 def test_analyze_crypto_always_seeds_its_section(dump_dir: Path) -> None:
     """Documented quirk: crypto is the one section created unconditionally."""
     report: dict = {}
-    analyze._analyze_crypto(dump_dir, report)
+    events._analyze_crypto(dump_dir, report)
     assert report["crypto"] == {}
 
 
@@ -81,7 +82,7 @@ def test_analyze_crypto_counts_keys_and_heap_candidates(
     )
     write_artifact("heap_bytes.json", [{"addr": "0x1"}, {"addr": "0x2"}])
     report: dict = {}
-    analyze._analyze_crypto(dump_dir, report)
+    events._analyze_crypto(dump_dir, report)
     assert report["crypto"]["hook_keys"] == {
         "total": 3,
         "by_algorithm": {"AES": 2, "RSA": 1},
@@ -99,7 +100,7 @@ def test_analyze_http_extracts_unique_hosts(dump_dir: Path, write_artifact: Writ
         ],
     )
     report: dict = {}
-    analyze._analyze_http(dump_dir, report)
+    events._analyze_http(dump_dir, report)
     assert report["http"] == {
         "requests": 3,
         "unique_hosts": ["api.example.com", "cdn.example.net"],
@@ -112,14 +113,14 @@ def test_analyze_http_tolerates_malformed_url(
     """Regression: url.split('/')[2] used to raise IndexError here."""
     write_artifact("http_traffic.json", [{"url": "malformed-no-scheme"}])
     report: dict = {}
-    analyze._analyze_http(dump_dir, report)
+    events._analyze_http(dump_dir, report)
     assert report["http"] == {"requests": 1, "unique_hosts": ["?"]}
 
 
 def test_analyze_tls_dedupes_sni(dump_dir: Path, write_artifact: WriteArtifact) -> None:
     write_artifact("tls_connections.json", [{"sni": "a.com"}, {"sni": "a.com"}, {"sni": ""}, {}])
     report: dict = {}
-    analyze._analyze_tls(dump_dir, report)
+    events._analyze_tls(dump_dir, report)
     assert report["tls"] == {"connections": 4, "unique_hosts": ["a.com"]}
 
 
@@ -130,7 +131,7 @@ def test_analyze_coverage_caps_top_modules_at_10(
         "coverage.json", {"totalBlocks": 500, "summary": {f"lib{i}.so": i for i in range(15)}}
     )
     report: dict = {}
-    analyze._analyze_coverage(dump_dir, report)
+    events._analyze_coverage(dump_dir, report)
     assert report["coverage"]["total_blocks"] == 500
     assert len(report["coverage"]["top_modules"]) == 10
     assert next(iter(report["coverage"]["top_modules"])) == "lib14.so"
@@ -139,28 +140,28 @@ def test_analyze_coverage_caps_top_modules_at_10(
 def test_analyze_sqlite_by_op(dump_dir: Path, write_artifact: WriteArtifact) -> None:
     write_artifact("sqlite_log.json", [{"op": "exec"}, {"op": "query"}, {"op": "exec"}])
     report: dict = {}
-    analyze._analyze_sqlite(dump_dir, report)
+    events._analyze_sqlite(dump_dir, report)
     assert report["sqlite"] == {"total_ops": 3, "by_op": {"exec": 2, "query": 1}}
 
 
 def test_analyze_binder_by_type(dump_dir: Path, write_artifact: WriteArtifact) -> None:
     write_artifact("binder_log.json", [{"type": "transact"}, {"type": "reply"}])
     report: dict = {}
-    analyze._analyze_binder(dump_dir, report)
+    events._analyze_binder(dump_dir, report)
     assert report["binder"] == {"total": 2, "by_type": {"transact": 1, "reply": 1}}
 
 
 def test_analyze_protobuf_by_direction(dump_dir: Path, write_artifact: WriteArtifact) -> None:
     write_artifact("protobuf_log.json", [{"direction": "send"}, {"direction": "recv"}])
     report: dict = {}
-    analyze._analyze_protobuf(dump_dir, report)
+    events._analyze_protobuf(dump_dir, report)
     assert report["protobuf"]["total"] == 2
 
 
 def test_analyze_safetynet_by_type(dump_dir: Path, write_artifact: WriteArtifact) -> None:
     write_artifact("safetynet_log.json", [{"type": "attest"}])
     report: dict = {}
-    analyze._analyze_safetynet(dump_dir, report)
+    events._analyze_safetynet(dump_dir, report)
     assert report["safetynet"] == {"total": 1, "by_type": {"attest": 1}}
 
 
@@ -170,7 +171,7 @@ def test_analyze_dlopen_filters_null_paths(dump_dir: Path, write_artifact: Write
         [{"path": "/a/libc.so"}, {"path": "<null>"}, {"path": "?"}, {"path": "/a/libc.so"}],
     )
     report: dict = {}
-    analyze._analyze_dlopen(dump_dir, report)
+    events._analyze_dlopen(dump_dir, report)
     assert report["dlopen"] == {"total_loads": 4, "unique_libs": ["/a/libc.so"]}
 
 
@@ -179,7 +180,7 @@ def test_analyze_anti_tamper_caps_bypass_list_at_50(
 ) -> None:
     write_artifact("anti_tamper_log.json", [{"bypass": f"b{i}"} for i in range(60)])
     report: dict = {}
-    analyze._analyze_anti_tamper(dump_dir, report)
+    events._analyze_anti_tamper(dump_dir, report)
     assert report["anti_tamper"]["total_bypasses"] == 60
     assert len(report["anti_tamper"]["bypasses"]) == 50
 
@@ -187,7 +188,7 @@ def test_analyze_anti_tamper_caps_bypass_list_at_50(
 def test_analyze_fileio_caps_paths_at_50(dump_dir: Path, write_artifact: WriteArtifact) -> None:
     write_artifact("fileio_log.json", [{"path": f"/p/{i}"} for i in range(60)])
     report: dict = {}
-    analyze._analyze_fileio(dump_dir, report)
+    events._analyze_fileio(dump_dir, report)
     assert report["fileio"]["total_ops"] == 60
     assert len(report["fileio"]["unique_paths"]) == 50
 
@@ -195,7 +196,7 @@ def test_analyze_fileio_caps_paths_at_50(dump_dir: Path, write_artifact: WriteAr
 def test_analyze_dex_without_jadx_still_records_files(dump_dir: Path) -> None:
     (dump_dir / "classes.dex").write_bytes(b"dex\n035\x00")
     report: dict = {}
-    analyze._analyze_dex(dump_dir, report)
+    binaries._analyze_dex(dump_dir, report)
     assert report["dex"]["files"] == ["classes.dex"]
     assert report["dex"]["jadx"] is None
 
@@ -204,9 +205,9 @@ def test_analyze_native_strings_finds_urls_and_jwts(
     dump_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (dump_dir / "libfoo.so").write_bytes(b"\x7fELF")
-    monkeypatch.setattr(analyze, "_find", lambda t: "/usr/bin/strings" if t == "strings" else None)
+    monkeypatch.setattr(binaries, "_find", lambda t: "/usr/bin/strings" if t == "strings" else None)
     monkeypatch.setattr(
-        analyze,
+        binaries,
         "_run",
         lambda *a, **k: (
             0,
@@ -216,7 +217,7 @@ def test_analyze_native_strings_finds_urls_and_jwts(
         ),
     )
     report: dict = {}
-    analyze._analyze_native_strings(dump_dir, report)
+    binaries._analyze_native_strings(dump_dir, report)
     assert len(report["native_strings"]["libfoo.so"]) == 2
 
 
@@ -230,7 +231,7 @@ def test_analyze_ue4_reads_all_three_artifacts(
         {"total": 3, "entries": [{"func": "Tick"}, {"func": "Tick"}, {"func": "Beg"}]},
     )
     report: dict = {}
-    analyze._analyze_ue4(dump_dir, report)
+    ue4.analyze_ue4_dump(dump_dir, report)
     assert report["ue4"]["sdk"]["classes"] == 7
     assert report["ue4"]["pak_files"] == [{"path": "/x/a.pak"}]
     assert report["ue4"]["blueprint_trace"]["top_functions"] == {"Tick": 2, "Beg": 1}
@@ -238,7 +239,7 @@ def test_analyze_ue4_reads_all_three_artifacts(
 
 def test_analyze_ue4_absent_adds_no_key(dump_dir: Path) -> None:
     report: dict = {}
-    analyze._analyze_ue4(dump_dir, report)
+    ue4.analyze_ue4_dump(dump_dir, report)
     assert "ue4" not in report
 
 
@@ -273,3 +274,25 @@ def test_analyze_dump_runs_every_registered_analyzer(
     monkeypatch.setattr(analyze, "_ANALYZERS", stubs)
     analyze_dump(str(dump_dir))
     assert len(called) == len(stubs)
+
+
+def test_ios_app_information_is_in_report(dump_dir: Path, write_artifact: WriteArtifact) -> None:
+    data = {"bundle_id": "com.example.ios", "modules": [{"name": "App", "size": 1024}]}
+    write_artifact("ios_app.json", data)
+    analyze_dump(str(dump_dir))
+    assert json.loads((dump_dir / "report.json").read_text())["ios_app"] == data
+
+
+def test_ios_il2cpp_binary_is_recognized(dump_dir: Path) -> None:
+    (dump_dir / "UnityFramework").write_bytes(b"mach-o")
+    report: dict = {}
+    binaries._analyze_il2cpp(dump_dir, report)
+    assert report["il2cpp"]["libil2cpp_size"] == 6
+
+
+def test_asset_bundle_is_not_counted_twice(dump_dir: Path) -> None:
+    (dump_dir / "asset_1.unity3d").write_bytes(b"UnityFS")
+    report: dict = {}
+    binaries._analyze_assets(dump_dir, report)
+    assert report["assets"]["count"] == 1
+    assert report["assets"]["total_bytes"] == 7

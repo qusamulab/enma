@@ -1,229 +1,145 @@
-# Agent Reference
+# エージェント一覧
 
-## Dump agents
+`dump -t NAME` で収集処理を選びます。省略時は対応 OS の全種類を実行します。
+`memscan` と `mempatch` は専用コマンドから操作し、`dump` には含まれません。
+[OS別の対応表](platforms.md) と [出力ファイル](output-files.md) も参照してください。
 
-### `dex` — DEX extraction
+## Android・iOS 共通
 
-Three-stage strategy:
-1. `InMemoryDexClassLoader` hook — captures bytes before runtime patching
-2. `libart OpenMemory` hook — intercepts at the ART level
-3. Memory scan — searches for `dex\n035` / `dex\n039` magic
+### `il2cpp` — Unity IL2CPP
 
-Output: `classes_N_*.dex`, `dex_obfuscation_report.json`
+公開 IL2CPP API を持つモジュールを検出し、シンボルマップを `il2cpp_dump.json` に保存します。
+Android の `libil2cpp.so` と iOS の UnityFramework 等に対応し、後からロードされるモジュールも監視します。
+メモリ上のバイナリと `global-metadata.dat` の取得を試みます。メモリイメージはディスク上の実行ファイルの完全な復元ではありません。
+暗号化・配置変更・シンボル削除によって取得できない場合があります。
 
-### `il2cpp` — IL2CPP symbol dump
+### `coverage` — コードカバレッジ
 
-1. Dumps raw `libil2cpp.so` ELF
-2. Extracts `global-metadata.dat` via `/proc/self/maps`
-3. Builds an Il2CppDumper-compatible `il2cpp_dump.json` by walking `il2cpp_domain_get_assemblies`
+Frida Stalker で実行された基本ブロックを収集し、`coverage.json` に保存します。
+実行負荷が高いため、短いセッションで使ってください。
 
-### `assets` — Unity AssetBundle dump
+### `tracer` — 関数トレース
 
-1. `LoadFromMemory` hook (IL2CPP managed)
-2. `libc open / mmap` hook — tracks `.unity3d` / `.bundle` file descriptors
-3. Memory scan for `UnityFS` / `UnityRaw` / `UnityWeb` magic
-4. APK `AssetManager.list()` enumeration
+対象モジュールの公開関数をフックし、引数・戻り値・スレッド情報を `trace.json` に保存します。
+既定では多数の関数を対象にし、最大5,000件を記録します。アプリの実行に負荷がかかります。
 
-### `mono` — Mono DLL dump
+### `sqlite` — SQL の観測
 
-1. `mono_assembly_foreach` enumeration
-2. `mono_assembly_load` / `mono_image_open` hooks for late-loaded DLLs
-3. MZ/PE header scan fallback
+Android は SQLiteDatabase／SQLiteStatement／Room、iOS は
+`sqlite3_exec`／`sqlite3_prepare_v2`／`sqlite3_prepare_v3` を観測します。
+`sqlite_log.json` に保存します。iOS は DB ハンドルと SQL が対象で、バインド値・結果行は含みません。
 
-### `heap` — Java heap scan
+### `fileio` — ファイル操作
 
-| What | File |
-|---|---|
-| `SecretKeySpec`, `PrivateKey` | `heap_keys.json` |
-| High-entropy `byte[]` (entropy ≥ 7.2) | `heap_bytes.json` |
-| `SharedPreferences` key-value pairs | `heap_prefs.json` |
-| OkHttp3 `Request` / `Response` | `heap_http.json` |
-| `android.net.Uri` | `heap_uris.json` |
-| Strings matching credential keywords | `heap_strings.json` |
+ネイティブの `open`／`write`／`unlink` と、Android では Java のファイル API を監視します。
+Android のアプリデータ領域、iOS のコンテナーや Documents 等のパスを `fileio_log.json` に記録します。
 
----
+### `dlopen` — ライブラリのロード
 
-## Analysis agents
+`dlopen` と `dlsym` を観測し、`dlopen_log.json`／`dlsym_log.json` に保存します。
+後からロードされたモジュールのメモリイメージを `dlopen_*` に保存する場合があります。
 
-### `coverage` — Code coverage (Stalker)
+### `memscan` — メモリ検索
 
-Uses Frida Stalker to record every unique basic block executed.
-Skips system libraries. Flushes after 30 s.
+`enma memscan TARGET` の対話操作で、値の検索・絞り込み・読み取りを行います。
+整数、符号なし整数、浮動小数点、バイト列に対応します。
 
-Output: `coverage.json` — `{blocks: [{module, rva, size}], summary: {module: count}}`
+### `mempatch` — メモリ書き換え
 
-### `tracer` — Function call tracer
+`enma mempatch TARGET ADDR` で値・バイト列・NOP の書き込み、定期的な値の書き戻しを行います。
+対象アーキテクチャに合わせて NOP を生成します。
 
-Hooks all exports matching a regex pattern (default: `.*`).
-Records timestamp, thread ID, call depth, arguments (hex), and return value.
+## iOS 専用
 
-Output: `trace.json` (up to 5,000 records)
+### `ios_app` — アプリ情報
 
-### `jni` — JNI method map
+NSBundle から Bundle ID、名前、バージョン、ビルドを読み取り、アーキテクチャと
+ロード済みモジュール一覧を `ios_app.json` に保存します。HTML レポートにも表示します。
 
-Hooks `RegisterNatives` (or JNI vtable slot 215 as fallback).
-Parses JNI type descriptors into human-readable signatures.
+### `ios_http` — NSURLSession
 
-Output: `jni_map.json` — `{javaClass, javaMethod, returnType, params, module, rva}`
+NSURLSession のデータ・ダウンロード・アップロードタスク作成を観測し、URL と HTTP メソッドを
+`http_traffic.json` に保存します。通信本文・レスポンス・WebSocket は対象外です。
+内部で複数の API を経由する場合、同じリクエストの記録が重複することがあります。
 
----
+### `ios_crypto` — CommonCrypto
 
-## Bypass agents
+`CCCrypt`、`CCCryptorCreate`、`CCCryptorCreateWithMode` のアルゴリズム・操作・キーを
+`crypto_keys.json` に記録します。CryptoKit や独自の暗号実装は対象外です。
 
-### `ssl` — SSL pinning bypass
+## Android 専用
 
-| Target | Technique |
-|---|---|
-| `X509TrustManager` | Registers a permissive TrustManager |
-| OkHttp3 `CertificatePinner` | Replaces `check()` with a no-op |
-| TrustKit | Nullifies `PinningTrustManager.checkServerTrusted` |
-| BoringSSL / libssl | `SSL_CTX_set_verify` → `VERIFY_NONE` |
-| Xamarin | Clears `ServicePointManager.ServerCertificateValidationCallback` |
+### `dex` — DEX の抽出
 
-Also logs TLS SNI hostnames → `tls_connections.json`
+クラスローダー、ART、メモリスキャンを利用し、`classes_N_*.dex` と
+`dex_obfuscation_report.json` を保存します。
 
-### `crypto` — Key harvesting
+### `assets` — Unity AssetBundle
 
-Java: `SecretKeySpec`, `Cipher.init`, `KeyGenerator`, `KeyPairGenerator`, `MessageDigest`
-Native: `AES_set_*_key`, `EVP_*Init_ex`, `d2i_RSAPrivateKey`
-Memory: 32-byte sliding window, Shannon entropy ≥ 7.4
+IL2CPP、ファイルアクセス、UnityFS 等のマジック値、AssetManager から
+AssetBundle を検出し、`.unity3d` として保存します。
 
-Output: `crypto_keys.json`, `rsa_private_key.der`
+### `mono` — Mono DLL
 
-### `anti_detect` — Root / emulator / debugger bypass
+Mono の埋め込み API とロード処理から管理アセンブリを探し、`.dll` を保存します。
 
-- `java.io.File.exists()` spoofing for su / Magisk paths
-- `SystemProperties.get()` — returns safe build fingerprint values
-- `/proc/self/status` `TracerPid` patching
-- `Debug.isDebuggerConnected()` → `false`
-- `Build.TAGS` / `FINGERPRINT` / `MODEL` field spoofing
+### `heap` — Java ヒープ
 
-### `anti_tamper` — Integrity check bypass
+キー、SharedPreferences、URL、文字列、高エントロピーのバイト列等を収集し、`heap_*.json` に保存します。
 
-- Logs `PackageInfo.GET_SIGNATURES` calls
-- Patches `ptrace(PTRACE_TRACEME)` → 0
-- Scrubs Frida tokens from `/proc/maps` reads
-- Logs CRC32 / ZipFile self-checks
+### `jni` — JNI マッピング
 
-Output: `anti_tamper_log.json`
+RegisterNatives 等をフックし、Java メソッドとネイティブ関数の対応を `jni_map.json` に記録します。
 
-### `safetynet` — SafetyNet / Play Integrity bypass
+### `ssl` — Android の TLS 検証
 
-- Logs `SafetyNetClient.attest()` and JWS result tokens
-- Logs `IntegrityManager` calls
-- Logs `KeyStore.getCertificateChain` (attestation chain)
-- Patches `LicenseChecker.checkAccess` → always allow
+TrustManager、OkHttp の CertificatePinner、ネイティブ SSL 等の検証処理に介入します。
+取得した SNI ホスト名は `tls_connections.json` に保存します。iOS の pinning には対応しません。
 
-Output: `safetynet_log.json`
+### `crypto` — Android の暗号処理
 
----
+Java Crypto、OpenSSL API、メモリ上の候補からキーを収集し、`crypto_keys.json` 等に保存します。
 
-## Network agents
+### `anti_detect` — 検出処理への介入
 
-### `http` — HTTP full-body capture
+root、エミュレーター、デバッガー等の確認 API と `/proc` の参照を対象にします。
 
-- OkHttp3: injects a `NetworkInterceptor` that peeks request/response bodies
-- `HttpURLConnection`: logs URL, method, status
-- Volley: hooks `parseNetworkResponse`
+### `anti_tamper` — 整合性確認
 
-Output: `http_traffic.json`
+署名確認、ptrace、マップ参照、CRC 等を観測・処理し、`anti_tamper_log.json` に記録します。
 
-### `websocket` — WebSocket monitor
+### `safetynet` — SafetyNet／Play Integrity
 
-- OkHttp3: wraps `WebSocketListener` and `RealWebSocket.send`
-- `javax.websocket` (Tyrus): hooks `sendText`
+端末認証 API と関連情報を `safetynet_log.json` に記録します。
+端末認証のサーバー側検証を通過できることを保証するものではありません。
 
-Output: `websocket_log.json` — direction `SEND` / `RECV` / `OPEN` / `CLOSE`
+### `http` — Android の HTTP
 
-### `protobuf` — Protobuf auto-decoder
+OkHttp、HttpURLConnection、Volley を観測し、`http_traffic.json` に保存します。
+収集できる本文やステータスは、使用するライブラリとフックに依存します。
 
-Hooks protobuf-java (`MessageLite.toByteArray`, `AbstractParser.parseFrom`),
-Wire (`ProtoAdapter`), and OkHttp `ResponseBody` for `application/x-protobuf`.
-Includes a minimal schema-less field decoder (varint, length-delimited, 32/64-bit).
+### `websocket` — WebSocket
 
-Output: `protobuf_log.json`
+OkHttp と javax.websocket の送受信イベントを `websocket_log.json` に保存します。
 
-### `binder` — Binder / IPC monitor
+### `protobuf` — Protobuf
 
-- Java: `startActivity`, `sendBroadcast`, `startService` (Intent inspection)
-- ContentProvider: `ContentResolver.query`, `insert`
-- Native `libbinder`: `IBinder::transact` (transaction code logging)
+protobuf-java、Wire、OkHttp の対象ボディを観測し、簡易デコード結果を `protobuf_log.json` に保存します。
 
-Output: `binder_log.json`
+### `binder` — Binder／IPC
 
----
+Intent、ContentProvider、ネイティブ Binder の操作を `binder_log.json` に記録します。
 
-## Storage agents
+### `ue4_sdk` — UE4 の SDK 情報
 
-### `sqlite` — SQLite monitor
+GNames／FNamePool と GUObjectArray からクラス・関数等を読み、`ue4_sdk.json` に保存します。
+UE4.23–4.27 のレイアウトが対象です。検出できない場合は `ue4` コマンドでアドレスを指定します。
 
-Hooks `SQLiteDatabase.execSQL`, `rawQuery`, `insert`, `update`, `delete`,
-`SQLiteStatement`, and Jetpack Room `SupportSQLiteDatabase`.
+### `ue4_pak` — UE4 の PAK
 
-Output: `sqlite_log.json`
+PAK のパスやメモリを検出し、`ue4_pak_list.json` と `ue4_pak_*.pak` に保存します。
 
-### `fileio` — File I/O monitor
+### `ue4_blueprint` — Blueprint トレース
 
-Java: `FileOutputStream` / `FileInputStream`, `SharedPreferences.commit`,
-`java.nio.file.Files.write`
-Native: `libc open` / `write` / `unlink` for paths under `/data/data/`, `/sdcard/`, etc.
-
-Output: `fileio_log.json`
-
-### `dlopen` — Dynamic library monitor
-
-Hooks `dlopen`, `android_dlopen_ext`, `dlsym`, `System.loadLibrary`.
-Immediately dumps newly loaded `.so` ELF binaries.
-
-Output: `dlopen_log.json`, `dlsym_log.json`, `dlopen_*.so` binaries
-
----
-
-## Unreal Engine agents
-
-Also reachable through the dedicated [`ue4` subcommand](subcommands.md), which adds
-the `--gnames` / `--gobjects` / `--process-event` address overrides and `--extract-pak`.
-
-### `ue4_sdk` — SDK dump
-
-Walks `GNames` / `FNamePool` and `GUObjectArray` to reconstruct the class, function,
-enum and struct tables. Supports UE4.23–4.27 layouts. Pass `--gnames` / `--gobjects`
-when auto-detection fails.
-
-Output: `ue4_sdk.json`
-
-### `ue4_pak` — PAK discovery
-
-Hooks `FPakFile` construction and file I/O to locate `.pak` archives on the device.
-With `--extract-pak`, enma then runs [u4pak](https://pypi.org/project/u4pak/) on any
-archive reachable from the host.
-
-Output: `ue4_pak_list.json`, `ue4_pak_*.pak`
-
-### `ue4_blueprint` — Blueprint tracer
-
-Hooks `UObject::ProcessEvent` and records Blueprint call names. Use `--process-event`
-to supply the address when the symbol is stripped. The trace is flushed on Ctrl+C.
-
-Output: `ue4_blueprint_trace.json`
-
----
-
-## Memory agents
-
-These two are RPC-driven rather than message-bus based: they are **not** part of a bare
-`enma dump` and are instead driven interactively by
-[`memscan` and `mempatch`](subcommands.md).
-
-### `memscan` — Value scanner
-
-CheatEngine-style scan → filter → results loop over every readable memory region.
-Supports `int8`–`int64`, `uint8`–`uint64`, `float`, `double` and `bytes`.
-
-### `mempatch` — Memory writer
-
-Writes a typed value, raw bytes, or architecture-appropriate NOP sleds to an address,
-with an optional freeze loop that rewrites the value on an interval.
-
----
-
+UObject::ProcessEvent を観測し、`ue4_blueprint_trace.json` に保存します。
+`ue4` コマンドの `--process-event` でアドレスを指定できます。

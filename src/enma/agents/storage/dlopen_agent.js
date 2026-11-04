@@ -139,7 +139,7 @@ function flush() {
 log("[dlopen] Agent loaded");
 hookDlopen();
 hookDlsym();
-Java.performNow(hookJavaLoad);
+if (Process.platform !== "darwin" && Java.available) Java.performNow(hookJavaLoad);
 
 setInterval(flush, 10000);
 setTimeout(flush, 60000);

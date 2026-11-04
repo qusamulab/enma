@@ -65,7 +65,8 @@ function attachToModules() {
     for (const mod of Process.enumerateModules()) {
         // Skip system libs unless pattern explicitly references them
         if (!RAW_PATTERN.includes(mod.name) &&
-            (mod.path.startsWith("/system") || mod.path.startsWith("/apex"))) continue;
+            (mod.path.startsWith("/system") || mod.path.startsWith("/apex") ||
+             mod.path.startsWith("/System/") || mod.path.startsWith("/usr/lib/"))) continue;
         for (const exp of mod.enumerateExports()) {
             if (exp.type !== "function") continue;
             if (!PATTERN.test(exp.name)) continue;

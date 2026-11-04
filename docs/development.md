@@ -1,114 +1,81 @@
-# Development
+# 開発ガイド
 
-## Project layout
+## ファイル配置
 
-```
-enma/
-├── pyproject.toml
-├── docs/                       # this site
-├── tests/                      # offline test suite — no device required
-└── src/enma/
-    ├── cli.py                  # argument parser + dispatch ONLY
-    ├── core/                   # shared primitives
-    │   ├── agents.py           #   the agent registry + load_agent()
-    │   ├── session.py          #   frida device / session lifecycle
-    │   ├── download.py         #   GitHub release download + cache
-    │   └── abi.py              #   Android ABI <-> arch translation
-    ├── dump.py                 # `dump` and `list`
-    ├── frida_server.py         # frida-server auto-deploy (`setup`)
-    ├── repack.py               # frida-gadget APK injection
-    ├── analyze.py              # post-dump analysis pipeline
-    ├── report.py               # HTML report generation
-    ├── unity.py                # Unity AssetBundle extraction
-    ├── mem.py                  # memscan / mempatch
-    ├── ue4.py                  # UE4 runtime analysis
-    └── agents/
-        ├── dump/               # dex, il2cpp, assets, mono, heap
-        ├── analysis/           # coverage, tracer, jni
-        ├── bypass/             # ssl, crypto, anti_detect, anti_tamper, safetynet
-        ├── network/            # http, websocket, protobuf, binder
-        ├── storage/            # sqlite, fileio, dlopen
-        ├── ue4/                # ue4_sdk, ue4_pak, ue4_blueprint
-        └── mem/                # memscan, mempatch
+```text
+src/enma/
+├── cli.py                 # 引数と処理の振り分け
+├── core/                  # 接続、OS判定、登録表、スクリプト準備
+├── dump.py / mem.py       # 共通のランタイム操作
+├── ue4.py                 # Android向けUE4実行処理
+├── frida_server.py        # Android向けsetup
+├── repack.py              # Android APKへのGadget組み込み
+├── unity.py               # オフラインAssetBundle展開
+├── analyze/
+│   ├── __init__.py        # analyze_dump() と解析順序
+│   ├── helpers.py         # JSON・集計・外部ツール
+│   ├── binaries.py        # DEX、IL2CPP、DLL、ネイティブ文字列
+│   ├── events.py          # 通信・ストレージ・アプリ情報
+│   └── ue4.py             # UE4のオフライン解析
+├── report/
+│   ├── __init__.py        # generate_html() / render_report()
+│   ├── components.py      # 共通HTML部品
+│   ├── sections.py        # セクション描画と登録表
+│   └── assets/            # レポート用CSS・JS
+└── agents/                # 対象アプリ内で実行するJS
+    ├── _runtime.js        # 共通Frida API互換処理
+    └── ios/               # iOS固有エージェント
 ```
 
-### Layering rule
+公開エントリーポイントは `enma.analyze.analyze_dump` と
+`enma.report.generate_html` / `render_report` のままです。
+配置変更の理由と依存方向は [構成とデータの流れ](architecture.md) を参照してください。
 
-Dependencies flow in one direction only:
-
-```
-cli.py  ──►  feature modules  ──►  core/
-```
-
-`core/` imports nothing from the feature modules, and **nothing imports `cli.py`**. The
-CLI keeps its feature-module imports *inside* each handler so that `enma --help`,
-`enma analyze` and `enma report` never pay to import `frida` or `UnityPy`.
-
----
-
-## Lint and format
-
-```bash
-uv run ruff check src/ tests/
-uv run ruff check src/ tests/ --fix
-uv run ruff format src/ tests/
-```
-
-## Tests
-
-The suite is fully offline — no device, no frida-server, no network. Autouse fixtures
-in `tests/conftest.py` enforce that rather than assuming it: external tool lookups
-return `None`, `urlopen` raises, and `Path.home()` is redirected to a tmp dir.
-
-```bash
-uv run pytest
-```
-
-## pre-commit
-
-```bash
-uv run pre-commit install          # install hooks (once)
-uv run pre-commit run --all-files  # run manually
-```
-
-## Docs
-
-Docs dependencies live in their own group, so `uv sync` alone does not install them:
+## 検証
 
 ```bash
 uv sync --group docs
-uv run mkdocs serve                # live preview on http://127.0.0.1:8000
-uv run mkdocs build --strict       # render to site/
+uv run ruff check src/ tests/
+uv run ruff format --check src/ tests/
+uv run pytest
+node --test tests/agents.test.cjs
+uv run mkdocs build --strict
 ```
 
----
+Python テストは実機不要です。外部ツール検索、ネットワーク、ホームディレクトリを
+fixture で差し替え、ローカルの Frida キャッシュや端末へアクセスしません。
+JavaScript テストは Node.js 22 以降で、Frida API を模擬してフック処理を検証します。
+実機での API・OS バージョンごとの差は、別途確認が必要です。
 
-## Adding a new agent
+## エージェントを追加する
 
-1. Create `src/enma/agents/{category}/{name}_agent.js`.
-2. Add **one row** to `_AGENTS` in [`core/agents.py`](https://github.com/qusamulab/enma/blob/main/src/enma/core/agents.py),
-   tagging it with `TAG_DUMP` (included in a bare `enma dump`), `TAG_UE4`, and/or `TAG_MEM`:
+1. `agents/{category}/{name}_agent.js` を作る。
+2. `core/agents.py` の `_AGENTS` に名前、カテゴリ、タグ、対応 OS を登録する。
+3. 出力を解析する関数を `analyze/` の該当モジュールに追加し、`_ANALYZERS` に登録する。
+4. `report/sections.py` に描画処理を追加し、`_RENDERERS` に登録する。
+5. [エージェント一覧](agents.md) と [対応範囲](platforms.md) を更新する。
+6. 模擬 API と出力を使って処理・非対応 OS の拒否・解析結果を検証する。
 
-    ```python
-    _a("mynewagent", "network", TAG_DUMP),
-    ```
-
-3. Add an analyzer `_analyze_{name}` to `analyze.py` and register it in `_ANALYZERS`.
-4. Add a renderer `_render_{name}` to `report.py` and register it in `_RENDERERS`.
-
-`tests/test_agents.py` asserts the registry and the `agents/` tree agree in **both**
-directions, so a `.js` file without a row — or a row without a `.js` file — fails CI
-rather than surfacing as a runtime error.
-
-### Agent message protocol
-
-JavaScript → Python, over the Frida message bus:
-
-```javascript
-send({ event: "log",  message: "something happened" });
-send({ event: "file", name: "output.bin" }, arrayBuffer);
-send({ event: "json", name: "result.json", data: { key: "value" } });
+```python
+_a("example", "ios", TAG_DUMP, platforms=(Platform.IOS,)),
 ```
 
-The `memscan` and `mempatch` agents instead expose `rpc.exports` and are driven
-synchronously from Python — see [Architecture](architecture.md).
+`TAG_DUMP` は `dump` 用、`TAG_UE4` は `ue4` 用、`TAG_MEM` はメモリ操作用です。
+登録表と JS ファイル、ドキュメントの見出しが一致することをテストで確認します。
+Java／Objective-C ブリッジをエージェントへコピーせず、`core/scripts.py` に任せてください。
+
+## ドキュメントの編集と公開
+
+```bash
+uv sync --group docs
+uv run mkdocs serve
+uv run mkdocs build --strict
+```
+
+設定は `mkdocs.yml`、本文は `docs/` にあります。
+README は入口として短く保ち、手順は各ガイドへ集約します。
+ページ間のリンクには `platforms.md` のような相対パスを使ってください。
+
+`main` のドキュメント・設定変更を GitHub Actions がビルドし、GitHub Pages へ公開します。
+初回はリポジトリの Pages の公開元を **GitHub Actions** に設定します。
+公開先は [qusamulab.github.io/enma](https://qusamulab.github.io/enma/) です。

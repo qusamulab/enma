@@ -1,4 +1,4 @@
-"""enma — Android runtime analysis and research toolkit, powered by Frida."""
+"""enma — Android and iOS runtime analysis and research toolkit, powered by Frida."""
 
 from importlib.metadata import PackageNotFoundError, version
 

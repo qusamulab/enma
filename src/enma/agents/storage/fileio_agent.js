@@ -18,6 +18,10 @@ const fileLog = [];
 const MAX     = 3000;
 
 const INTERESTING = [
+    "/var/mobile/Containers/",
+    "/private/var/mobile/Containers/",
+    "/Library/Preferences/",
+    "/Documents/",
     "/data/data/",
     "/data/user/",
     "/sdcard/",
@@ -105,9 +109,9 @@ function hookJavaFileIO() {
 // ── 2. Native libc open / write / unlink ─────────────────────────────────────
 
 function hookNativeFileIO() {
-    const openPtr   = Module.findExportByName("libc.so", "open");
-    const writePtr  = Module.findExportByName("libc.so", "write");
-    const unlinkPtr = Module.findExportByName("libc.so", "unlink");
+    const openPtr   = Module.findExportByName(null, "open");
+    const writePtr  = Module.findExportByName(null, "write");
+    const unlinkPtr = Module.findExportByName(null, "unlink");
 
     const openFds = new Map(); // fd -> path
 
@@ -159,7 +163,7 @@ function flush() {
 
 log("[fileio] Agent loaded");
 hookNativeFileIO();
-Java.performNow(hookJavaFileIO);
+if (Process.platform !== "darwin" && Java.available) Java.performNow(hookJavaFileIO);
 
 setInterval(flush, 10000);
 setTimeout(flush, 60000);

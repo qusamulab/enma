@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from functools import cache
 from typing import Final
 
+from enma.core.platforms import Platform
+
 AGENTS_PACKAGE: Final = "enma.agents"
 
 # Tags express membership, not location. An agent may carry several.
@@ -38,14 +40,20 @@ class Agent:
     name: str  # -> agents/<category>/<name>_agent.js
     category: str  # subdirectory under agents/
     tags: frozenset[str]
+    platforms: frozenset[Platform] = frozenset({Platform.ANDROID})
 
     @property
     def filename(self) -> str:
         return f"{self.name}_agent.js"
 
 
-def _a(name: str, category: str, *tags: str) -> Agent:
-    return Agent(name=name, category=category, tags=frozenset(tags))
+def _a(
+    name: str, category: str, *tags: str, platforms: tuple[Platform, ...] = (Platform.ANDROID,)
+) -> Agent:
+    return Agent(name, category, frozenset(tags), frozenset(platforms))
+
+
+_MOBILE = (Platform.ANDROID, Platform.IOS)
 
 
 # Declaration order is public API: it drives --help ordering and the order in
@@ -53,7 +61,7 @@ def _a(name: str, category: str, *tags: str) -> Agent:
 _AGENTS: Final[tuple[Agent, ...]] = (
     # core dump
     _a("dex", "dump", TAG_DUMP),
-    _a("il2cpp", "dump", TAG_DUMP),
+    _a("il2cpp", "dump", TAG_DUMP, platforms=_MOBILE),
     _a("assets", "dump", TAG_DUMP),
     _a("mono", "dump", TAG_DUMP),
     _a("ssl", "bypass", TAG_DUMP),
@@ -61,8 +69,8 @@ _AGENTS: Final[tuple[Agent, ...]] = (
     _a("jni", "analysis", TAG_DUMP),
     _a("heap", "dump", TAG_DUMP),
     # dynamic analysis
-    _a("coverage", "analysis", TAG_DUMP),
-    _a("tracer", "analysis", TAG_DUMP),
+    _a("coverage", "analysis", TAG_DUMP, platforms=_MOBILE),
+    _a("tracer", "analysis", TAG_DUMP, platforms=_MOBILE),
     _a("binder", "network", TAG_DUMP),
     # bypass
     _a("anti_detect", "bypass", TAG_DUMP),
@@ -72,16 +80,19 @@ _AGENTS: Final[tuple[Agent, ...]] = (
     _a("http", "network", TAG_DUMP),
     _a("websocket", "network", TAG_DUMP),
     _a("protobuf", "network", TAG_DUMP),
-    _a("sqlite", "storage", TAG_DUMP),
-    _a("fileio", "storage", TAG_DUMP),
-    _a("dlopen", "storage", TAG_DUMP),
+    _a("sqlite", "storage", TAG_DUMP, platforms=_MOBILE),
+    _a("fileio", "storage", TAG_DUMP, platforms=_MOBILE),
+    _a("dlopen", "storage", TAG_DUMP, platforms=_MOBILE),
+    _a("ios_app", "ios", TAG_DUMP, platforms=(Platform.IOS,)),
+    _a("ios_http", "ios", TAG_DUMP, platforms=(Platform.IOS,)),
+    _a("ios_crypto", "ios", TAG_DUMP, platforms=(Platform.IOS,)),
     # Unreal Engine — dumpable and also exposed via the `ue4` subcommand
     _a("ue4_sdk", "ue4", TAG_DUMP, TAG_UE4),
     _a("ue4_pak", "ue4", TAG_DUMP, TAG_UE4),
     _a("ue4_blueprint", "ue4", TAG_DUMP, TAG_UE4),
     # interactive memory — RPC-only, deliberately not dumpable
-    _a("memscan", "mem", TAG_MEM),
-    _a("mempatch", "mem", TAG_MEM),
+    _a("memscan", "mem", TAG_MEM, platforms=_MOBILE),
+    _a("mempatch", "mem", TAG_MEM, platforms=_MOBILE),
 )
 
 _BY_NAME: Final[dict[str, Agent]] = {a.name: a for a in _AGENTS}
@@ -98,9 +109,24 @@ def get(name: str) -> Agent:
         raise UnknownAgentError(name) from None
 
 
-def names(tag: str | None = None) -> tuple[str, ...]:
+def names(tag: str | None = None, *, platform: Platform | None = None) -> tuple[str, ...]:
     """Agent names in declaration order, optionally filtered by *tag*."""
-    return tuple(a.name for a in _AGENTS if tag is None or tag in a.tags)
+    return tuple(
+        a.name
+        for a in _AGENTS
+        if (tag is None or tag in a.tags) and (platform is None or platform in a.platforms)
+    )
+
+
+def select_agents(tag: str, platform: Platform, requested: list[str] | None = None) -> list[str]:
+    """Filter defaults by OS; reject explicit incompatible selections before attach."""
+    available = names(tag, platform=platform)
+    if requested is None:
+        return list(available)
+    unsupported = [name for name in requested if name not in available]
+    if unsupported:
+        raise ValueError(f"Unsupported agents for {platform}: {', '.join(unsupported)}")
+    return list(dict.fromkeys(requested))
 
 
 DUMP_AGENTS: Final[tuple[str, ...]] = names(TAG_DUMP)

@@ -1,92 +1,72 @@
-# enma
+# enma を使い始める
 
-A [Frida](https://frida.re)-based Android security research toolkit for extracting and analyzing runtime artifacts — DEX files, IL2CPP binaries, Unity assets, crypto keys, network traffic, and more.
+enma は [Frida](https://frida.re) を使う Android・iOS 向けランタイム解析ツールです。
+アプリを動かしながら情報を収集し、JSON と HTML レポートにまとめます。
+自分が所有する、または解析の許可を得たアプリを対象にしてください。
 
-!!! warning "Intended use"
-    Penetration testing, CTF challenges, security research, and reverse engineering of apps you own or have explicit permission to analyze.
+## 1. インストール
 
----
-
-## Requirements
-
-| Dependency | Notes |
-|---|---|
-| Python 3.12+ | |
-| [uv](https://docs.astral.sh/uv/) | Package manager |
-| [ADB](https://developer.android.com/tools/adb) | In `PATH` |
-| Rooted device **or** emulator | AVD / Genymotion |
-| frida-server | Auto-deployed by `enma setup` |
-
-Optional, for [`analyze`](subcommands.md):
-
-| Tool | Purpose |
-|---|---|
-| [jadx](https://github.com/skylot/jadx) | DEX / Mono DLL decompilation |
-| [apktool](https://apktool.org) | APK decoding |
-| [Il2CppDumper](https://github.com/Perfare/Il2CppDumper) | IL2CPP symbol extraction |
-| `strings` | Native `.so` string extraction |
-
-Analysis degrades gracefully when these are missing — each step is skipped with a warning rather than failing the run.
-
----
-
-## Installation
+Python 3.12 以降と [uv](https://docs.astral.sh/uv/) が必要です。
 
 ```bash
 git clone https://github.com/qusamulab/enma
 cd enma
 uv sync
+uv run enma --help
 ```
 
-Activate the virtual environment (optional — prefix commands with `uv run` instead):
+## 2. 端末を準備する
 
-```bash
-source .venv/bin/activate
-```
-
-For Unity asset extraction, install the optional extra:
-
-```bash
-uv pip install "enma[unity]"
-```
-
----
-
-## Quick Start
-
-```bash
-# 1. Push frida-server to device
-uv run enma setup
-
-# 2. Find the target package name
-uv run enma list
-
-# 3. Dump all artifacts
-uv run enma dump com.example.game -o ./dump
-
-# 4. Run post-dump analysis
-uv run enma analyze ./dump
-
-# 5. Open the HTML report
-uv run enma report ./dump
-open ./dump/report.html
-```
-
----
-
-## Where to go next
-
-| Page | Contents |
+| 対象 | 準備 |
 |---|---|
-| [Subcommands](subcommands.md) | Every CLI command, with flags and examples |
-| [Agent Reference](agents.md) | What each of the 25 JS agents hooks and emits |
-| [Output Files](output-files.md) | What lands in the dump directory |
-| [Architecture](architecture.md) | System design, data flow, hook layers |
-| [Development](development.md) | Project layout, tests, adding an agent |
+| Android | ADB と root 化済み端末／エミュレーター。`uv run enma setup` で frida-server を配置 |
+| iOS | Frida に対応した脱獄端末に frida-server を導入。USB 接続とペアリングを確認 |
+| Gadget | 自分で組み込んだ Frida Gadget に TCP 接続。OS は `--platform` で指定 |
 
----
+具体的な手順と対応機能は [Android・iOS の準備](platforms.md) を参照してください。
 
-## Disclaimer
+## 3. アプリから収集する
 
-Use only against apps you own or have explicit written authorization to analyze.
-Dumped files may contain sensitive cryptographic material — handle with care.
+まずアプリ一覧で Android のパッケージ名、または iOS の Bundle ID を調べます。
+
+```bash
+uv run enma list
+```
+
+対象アプリを起動してから、必要なエージェントを選んで実行します。
+
+=== "Android"
+
+    ```bash
+    uv run enma dump com.example.game -t dex http sqlite -o ./dump --timeout 30
+    ```
+
+=== "iOS"
+
+    ```bash
+    uv run enma dump com.example.app -t ios_app ios_http sqlite -o ./dump --timeout 30
+    ```
+
+アプリを起動する場合は `--spawn`、起動を待つ場合は `--watch` を追加します。
+`-t` を省略すると、その OS に対応する全エージェントを読み込みます。
+`coverage` と `tracer` は負荷が高いため、最初は必要なものだけを選ぶことを勧めます。
+
+## 4. レポートを見る
+
+```bash
+uv run enma analyze ./dump
+uv run enma report ./dump
+open ./dump/report.html   # macOS。ほかのOSではブラウザーで開く
+```
+
+`analyze` と `report` は端末に接続せずに使えます。
+`jadx`、`Il2CppDumper`、`strings` は任意です。未導入の解析処理はスキップします。
+生成されるファイルの意味は [出力ファイル](output-files.md) にまとめています。
+
+## 次に読む
+
+- [コマンド一覧](subcommands.md)：引数、メモリ操作、Unity・UE4 の使い方
+- [エージェント一覧](agents.md)：収集内容と対応 OS
+- [トラブルシューティング](troubleshooting.md)：接続・出力・公開サイトの問題
+- [構成とデータの流れ](architecture.md)：コードを読むための全体像
+- [開発ガイド](development.md)：検証手順と機能の追加方法

@@ -1,12 +1,13 @@
 site_name: enma
-site_description: Frida-based Android security research toolkit
-site_url: https://qusamulab.github.io/enma
+site_description: Android・iOS ランタイム解析ツール
+site_url: https://qusamulab.github.io/enma/
 repo_url: https://github.com/qusamulab/enma
 repo_name: qusamulab/enma
 edit_uri: edit/main/docs/
 
 theme:
   name: material
+  language: ja
   palette:
     - scheme: default
       primary: indigo
@@ -44,15 +45,21 @@ markdown_extensions:
   - toc:
       permalink: true
 
+validation:
+  links:
+    anchors: warn
+
 plugins:
   - search
 
 nav:
-  - Home: index.md
-  - Usage:
-      - Subcommands: subcommands.md
-      - Agent Reference: agents.md
-      - Output Files: output-files.md
-  - Reference:
-      - Architecture: architecture.md
-      - Development: development.md
+  - はじめに: index.md
+  - 使い方:
+      - Android・iOS の準備: platforms.md
+      - コマンド一覧: subcommands.md
+      - エージェント一覧: agents.md
+      - 出力ファイル: output-files.md
+      - トラブルシューティング: troubleshooting.md
+  - 開発:
+      - 構成とデータの流れ: architecture.md
+      - 開発ガイド: development.md
