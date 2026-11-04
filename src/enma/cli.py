@@ -1,4 +1,4 @@
-"""enma — Android runtime analysis and research toolkit, powered by Frida.
+"""enma — Android and iOS runtime analysis and research toolkit, powered by Frida.
 
 This module is the CLI surface only: it builds the argument parser and routes to
 the feature modules. All runtime logic lives in ``enma.core`` and the per-feature
@@ -132,10 +132,18 @@ def _verbose_parser(short: bool = True) -> argparse.ArgumentParser:
 
 
 def _target_parser() -> argparse.ArgumentParser:
-    """The target/serial/spawn/watch quartet — see core.session.TargetArgs."""
+    """Shared mobile target and connection options; see core.session.TargetArgs."""
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument("target", help="Package name or PID")
-    p.add_argument("-s", "--serial", help="ADB device serial")
+    p.add_argument("target", help="Android package, iOS bundle identifier, process name or PID")
+    connection = p.add_mutually_exclusive_group()
+    connection.add_argument("-s", "--serial", help="Frida device ID (Android serial or iOS UDID)")
+    connection.add_argument("--host", help="Remote frida-server / Gadget address (HOST[:PORT])")
+    p.add_argument(
+        "--platform",
+        choices=["auto", "android", "ios"],
+        default="auto",
+        help="Target OS (default: auto-detect; override for Gadget)",
+    )
     p.add_argument("--spawn", action="store_true", help="Spawn instead of attaching")
     p.add_argument("--watch", action="store_true", help="Wait for app to start, then attach")
     return p
@@ -152,7 +160,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="enma",
-        description="enma — Android runtime analysis and research toolkit",
+        description="enma — Android and iOS runtime analysis toolkit",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"Available agent types: {', '.join(DUMP_AGENTS)}",
         parents=[verbose],
@@ -181,10 +189,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # list
     p = sub.add_parser("list", help="List installed apps on device", parents=[verbose])
-    p.add_argument("-s", "--serial", help="ADB device serial")
+    connection = p.add_mutually_exclusive_group()
+    connection.add_argument("-s", "--serial", help="Frida device ID (Android serial or iOS UDID)")
+    connection.add_argument("--host", help="Remote frida-server / Gadget address (HOST[:PORT])")
 
     # setup
-    p = sub.add_parser("setup", help="Push and start frida-server on device", parents=[verbose])
+    p = sub.add_parser("setup", help="Deploy frida-server on Android via ADB", parents=[verbose])
     p.add_argument("-s", "--serial", help="ADB device serial")
     p.add_argument("-f", "--force", action="store_true", help="Force re-push")
 

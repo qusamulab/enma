@@ -1,88 +1,11 @@
-"""report — convert report.json into a self-contained HTML research report."""
+"""Artifact section renderers and their dispatch table."""
 
 from __future__ import annotations
 
 import json
-import logging
-import textwrap
-from pathlib import Path
+from html import escape
 
-logger = logging.getLogger(__name__)
-
-_CSS = """
-body{font-family:system-ui,sans-serif;background:#0f1117;color:#e0e0e0;margin:0;padding:0}
-.header{background:#1a1d27;padding:24px 32px;border-bottom:2px solid #2d3045}
-.header h1{margin:0;font-size:1.6rem;color:#7eb6ff}
-.header .meta{color:#888;font-size:.85rem;margin-top:4px}
-.container{max-width:1200px;margin:0 auto;padding:24px 32px}
-.section{background:#1a1d27;border:1px solid #2d3045;border-radius:8px;margin-bottom:20px;overflow:hidden}
-.section-header{display:flex;align-items:center;gap:10px;padding:14px 18px;background:#1e2130;cursor:pointer;user-select:none}
-.section-header h2{margin:0;font-size:1rem;font-weight:600;color:#b0c4f0}
-.badge{padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:700;background:#2d3045;color:#aaa}
-.badge.high{background:#5c1a1a;color:#ff7070}
-.badge.med{background:#4d3800;color:#ffb833}
-.badge.low{background:#1a3a1a;color:#6fcf6f}
-.badge.info{background:#1a2a40;color:#6ab0ff}
-.section-body{padding:18px;display:none}
-.section-body.open{display:block}
-table{width:100%;border-collapse:collapse;font-size:.85rem}
-th{text-align:left;padding:8px 10px;background:#222636;color:#8090b0;font-weight:600;border-bottom:1px solid #2d3045}
-td{padding:7px 10px;border-bottom:1px solid #1e2130;vertical-align:top;word-break:break-all}
-tr:hover td{background:#1e2130}
-.mono{font-family:monospace;font-size:.82rem;color:#90d0a0}
-.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.72rem;background:#2d3045;color:#aaa;margin:1px}
-.tag.danger{background:#5c1a1a;color:#ff9090}
-.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px}
-.stat-card{background:#1e2130;border:1px solid #2d3045;border-radius:6px;padding:14px 16px}
-.stat-card .num{font-size:2rem;font-weight:700;color:#7eb6ff}
-.stat-card .lbl{font-size:.8rem;color:#888;margin-top:2px}
-pre{background:#0d0f1a;padding:12px;border-radius:6px;overflow:auto;font-size:.8rem;color:#90d0a0;max-height:300px}
-"""
-
-_JS = """
-document.querySelectorAll('.section-header').forEach(h => {
-  h.addEventListener('click', () => {
-    h.nextElementSibling.classList.toggle('open');
-  });
-});
-document.querySelectorAll('.section-body[data-open="1"]').forEach(b => b.classList.add('open'));
-"""
-
-
-# ── HTML primitives ───────────────────────────────────────────────────────────
-
-
-def _badge(level: str, text: str) -> str:
-    return f'<span class="badge {level}">{text}</span>'
-
-
-def _table(headers: list[str], rows: list[list[str]]) -> str:
-    ths = "".join(f"<th>{h}</th>" for h in headers)
-    trs = "".join(f"<tr>{''.join(f'<td>{c}</td>' for c in row)}</tr>" for row in rows)
-    return f"<table><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table>"
-
-
-def _kv_table(data: dict) -> str:
-    return _table(["Key", "Count"], [[k, str(v)] for k, v in data.items()])
-
-
-def _ul(items: list) -> str:
-    return "<ul>" + "".join(f"<li class='mono'>{h}</li>" for h in items) + "</ul>"
-
-
-def _section(title: str, badge_html: str, body_html: str, auto_open: bool = False) -> str:
-    open_attr = ' data-open="1"' if auto_open else ""
-    return textwrap.dedent(f"""
-    <div class="section">
-      <div class="section-header">
-        <h2>{title}</h2>{badge_html}
-      </div>
-      <div class="section-body"{open_attr}>{body_html}</div>
-    </div>
-    """)
-
-
-# ── Per-section renderers ──────────────────────────────────────────────────────
+from enma.report.components import _badge, _kv_table, _section, _table, _ul
 
 
 def _render_dex(data: dict) -> str:
@@ -92,8 +15,8 @@ def _render_dex(data: dict) -> str:
     verdict = obf.get("verdict", "")
     level = "high" if ratio > 50 else "med" if ratio > 20 else "low"
     badge = _badge(level, f"{ratio}% obfuscated")
-    body = f"<p>Files: {', '.join(f'<span class="mono">{f}</span>' for f in files)}</p>"
-    body += f"<p>Verdict: <b>{verdict}</b></p>"
+    body = "<p>Files:</p>" + _ul(files)
+    body += f"<p>Verdict: <b>{escape(verdict, quote=False)}</b></p>"
     jadx = data.get("jadx") or {}
     if jadx.get("java_files"):
         body += f"<p>jadx decompiled: {jadx['java_files']:,} Java files</p>"
@@ -208,11 +131,7 @@ def _render_anti_tamper(data: dict) -> str:
     total = data.get("total_bypasses", 0)
     badge = _badge("med" if total > 0 else "low", f"{total} bypasses")
     bypasses = data.get("bypasses", [])
-    body = (
-        "<ul>" + "".join(f"<li>{b}</li>" for b in bypasses) + "</ul>"
-        if bypasses
-        else "<p>None.</p>"
-    )
+    body = _ul(bypasses) if bypasses else "<p>None.</p>"
     return _section("Anti-Tamper Bypasses", badge, body, total > 0)
 
 
@@ -278,14 +197,27 @@ def _render_ue4(data: dict) -> str:
     return _section("Unreal Engine 4", badge, body or "<p>No UE4 data.</p>", bool(sdk or pak or bp))
 
 
+def _render_ios_app(data: dict) -> str:
+    metadata = {key: data.get(key) for key in ("bundle_id", "name", "version", "build", "arch")}
+    body = _table(
+        ["Property", "Value"], [[key, str(value or "?")] for key, value in metadata.items()]
+    )
+    modules = data.get("modules", [])
+    body += _table(
+        ["Module", "Path"], [[mod.get("name", "?"), mod.get("path", "?")] for mod in modules[:200]]
+    )
+    return _section("iOS Application", _badge("info", f"{len(modules)} modules"), body, True)
+
+
 def _render_generic(title: str, data: dict) -> str:
-    body = f"<pre>{json.dumps(data, indent=2, ensure_ascii=False)[:4000]}</pre>"
+    body = (
+        f"<pre>{escape(json.dumps(data, indent=2, ensure_ascii=False)[:4000], quote=False)}</pre>"
+    )
     return _section(title, _badge("info", ""), body)
 
 
-# ── Renderer dispatch ──────────────────────────────────────────────────────────
-
 _RENDERERS = {
+    "ios_app": _render_ios_app,
     "dex": _render_dex,
     "il2cpp": _render_il2cpp,
     "jni": _render_jni,
@@ -305,82 +237,3 @@ _RENDERERS = {
     "mono": _render_mono,
     "ue4": _render_ue4,
 }
-
-_SKIP_KEYS = {"dump_dir", "tool_versions"}
-
-
-# ── Summary cards ──────────────────────────────────────────────────────────────
-
-
-def _summary_cards(report: dict) -> str:
-    stats = [
-        ("DEX files", len(report.get("dex", {}).get("files", []))),
-        ("IL2CPP methods", report.get("il2cpp", {}).get("methods", 0)),
-        ("JNI mappings", report.get("jni", {}).get("total_mappings", 0)),
-        ("Crypto keys", report.get("crypto", {}).get("hook_keys", {}).get("total", 0)),
-        ("TLS hosts", len(report.get("tls", {}).get("unique_hosts", []))),
-        ("HTTP requests", report.get("http", {}).get("requests", 0)),
-        ("AssetBundles", report.get("assets", {}).get("count", 0)),
-        ("Mono DLLs", report.get("mono", {}).get("count", 0)),
-        ("Native strings", sum(len(v) for v in report.get("native_strings", {}).values())),
-        ("Coverage blocks", report.get("coverage", {}).get("total_blocks", 0)),
-        ("SQLite ops", report.get("sqlite", {}).get("total_ops", 0)),
-        ("dlopen loads", report.get("dlopen", {}).get("total_loads", 0)),
-        ("UE4 classes", report.get("ue4", {}).get("sdk", {}).get("classes", 0)),
-        ("UE4 BP calls", report.get("ue4", {}).get("blueprint_trace", {}).get("total_calls", 0)),
-    ]
-    cards = "".join(
-        f'<div class="stat-card"><div class="num">{num}</div><div class="lbl">{lbl}</div></div>'
-        for lbl, num in stats
-    )
-    return f'<div class="summary-grid">{cards}</div>'
-
-
-# ── Main renderer ──────────────────────────────────────────────────────────────
-
-
-def generate_html(report: dict, dump_dir: Path) -> str:
-    sections = _summary_cards(report)
-    for key, data in report.items():
-        if key in _SKIP_KEYS:
-            continue
-        renderer = _RENDERERS.get(key)
-        sections += (
-            renderer(data) if renderer else _render_generic(key.replace("_", " ").title(), data)
-        )
-
-    return textwrap.dedent(f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>enma Report — {dump_dir.name}</title>
-  <style>{_CSS}</style>
-</head>
-<body>
-  <div class="header">
-    <h1>enma Research Report</h1>
-    <div class="meta">Dump: {dump_dir}  |  Generated by enma</div>
-  </div>
-  <div class="container">
-    {sections}
-  </div>
-  <script>{_JS}</script>
-</body>
-</html>
-""")
-
-
-def render_report(dump_dir: str, report_json: str | None = None, output: str | None = None) -> str:
-    path = Path(dump_dir).resolve()
-    json_path = Path(report_json) if report_json else path / "report.json"
-    out_path = Path(output) if output else path / "report.html"
-
-    if not json_path.exists():
-        raise FileNotFoundError(f"report.json not found: {json_path}")
-
-    report = json.loads(json_path.read_text())
-    html = generate_html(report, path)
-    out_path.write_text(html, encoding="utf-8")
-    logger.info("HTML saved: %s", out_path)
-    return str(out_path)

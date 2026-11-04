@@ -17,6 +17,8 @@ from typing import Protocol
 import frida
 
 from enma.core.agents import UnknownAgentError, load_agent
+from enma.core.platforms import Platform, detect_platform
+from enma.core.scripts import prepare_source
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +26,15 @@ logger = logging.getLogger(__name__)
 class TargetArgs(Protocol):
     """Structural type for the argparse namespace of any target-taking command.
 
-    The dump / ue4 / memscan / mempatch subparsers all define exactly these four
-    options via a shared ``parents=`` parser. Declared as a Protocol so that
+    The dump / ue4 / memscan / mempatch subparsers share their target and
+    connection options via a ``parents=`` parser. Declared as a Protocol so that
     ``core`` never has to import argparse or the CLI.
     """
 
     target: str
     serial: str | None
+    host: str | None
+    platform: str
     spawn: bool
     watch: bool
 
@@ -38,8 +42,10 @@ class TargetArgs(Protocol):
 # ── Device selection ──────────────────────────────────────────────────────────
 
 
-def get_device(serial: str | None) -> frida.core.Device:
+def get_device(serial: str | None, *, host: str | None = None) -> frida.core.Device:
     dm = frida.get_device_manager()
+    if host:
+        return dm.add_remote_device(host)
     if serial:
         return dm.get_device(serial)
     devices = [d for d in dm.enumerate_devices() if d.type == "usb"]
@@ -72,6 +78,13 @@ def attach_or_spawn(device: frida.core.Device, target: str, spawn: bool) -> frid
         device.resume(pid)
         return session
     logger.info("Attaching to %s ...", target)
+    if target.isdecimal():
+        return device.attach(int(target))
+    for app in device.enumerate_applications():
+        if app.identifier == target:
+            if not app.pid:
+                raise frida.ProcessNotFoundError(f"{target} is not running; use --spawn or --watch")
+            return device.attach(app.pid)
     return device.attach(target)
 
 
@@ -95,9 +108,17 @@ def open_session(
     return attach_or_spawn(device, target, spawn)
 
 
-def connect(args: TargetArgs) -> tuple[frida.core.Device, frida.core.Session]:
+def connect(
+    args: TargetArgs, *, platform: Platform | None = None
+) -> tuple[frida.core.Device, frida.core.Session]:
     """``get_device`` + ``open_session`` — what every target-taking command does."""
-    device = get_device(args.serial)
+    device = get_device(args.serial, host=getattr(args, "host", None))
+    try:
+        detected = detect_platform(device, getattr(args, "platform", "auto"))
+        if platform is not None and detected != platform:
+            raise ValueError(f"This command supports {platform} only (device: {detected})")
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     return device, open_session(device, args.target, spawn=args.spawn, watch=args.watch)
 
 
@@ -157,7 +178,7 @@ def load_scripts(
         except (UnknownAgentError, FileNotFoundError):
             logger.error("Agent not found: %s", agent_name)
             continue
-        script = session.create_script(source)
+        script = session.create_script(prepare_source(source))
         script.on("message", make_on_message(agent_name, out_dir, lock))
         scripts[agent_name] = script
 
@@ -166,6 +187,13 @@ def load_scripts(
         script.load()
 
     return scripts
+
+
+def flush_scripts(scripts: dict[str, frida.core.Script]) -> None:
+    """Save buffered events before an intentional detach, where supported."""
+    for script in scripts.values():
+        with contextlib.suppress(Exception):
+            script.exports_sync.flush()
 
 
 # ── Session lifetime ──────────────────────────────────────────────────────────
@@ -189,6 +217,7 @@ def run_until_detached(
     break its retry loop, while ``run_ue4`` needs to keep going so ``--extract-pak``
     still runs. Returning a flag serves both.
     """
+    timer = None
     if timeout > 0:
         logger.info("Will auto-detach after %ds", timeout)
         timer = threading.Timer(timeout, lambda: os.kill(os.getpid(), signal.SIGINT))
@@ -209,6 +238,8 @@ def run_until_detached(
         if on_interrupt is not None:
             on_interrupt()
     finally:
+        if timer is not None:
+            timer.cancel()
         with contextlib.suppress(Exception):
             session.detach()
     return interrupted

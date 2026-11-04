@@ -8,8 +8,15 @@ import threading
 import time
 from pathlib import Path
 
-from enma.core.agents import DUMP_AGENTS
-from enma.core.session import get_device, load_scripts, open_session, run_until_detached
+from enma.core.agents import TAG_DUMP, select_agents
+from enma.core.platforms import detect_platform
+from enma.core.session import (
+    flush_scripts,
+    get_device,
+    load_scripts,
+    open_session,
+    run_until_detached,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +27,25 @@ def run_dump(args: argparse.Namespace) -> None:
 
     # Selected once, outside the retry loop: re-running get_device() per attempt
     # would re-prompt for a device on every re-attach and block --retry on stdin.
-    device = get_device(args.serial)
-    agents = list(args.type) if args.type else list(DUMP_AGENTS)
+    device = get_device(args.serial, host=getattr(args, "host", None))
+    try:
+        platform = detect_platform(device, getattr(args, "platform", "auto"))
+        agents = select_agents(TAG_DUMP, platform, args.type)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    logger.info("Platform: %s; agents: %s", platform, ", ".join(agents))
     lock = threading.Lock()
 
     def one_session() -> bool:
         session = open_session(device, args.target, spawn=args.spawn, watch=args.watch)
-        load_scripts(session, agents, str(out_dir), lock)
-        return run_until_detached(session, timeout=args.timeout or 0)
+        try:
+            scripts = load_scripts(session, agents, str(out_dir), lock)
+        except BaseException:
+            session.detach()
+            raise
+        return run_until_detached(
+            session, timeout=args.timeout or 0, on_interrupt=lambda: flush_scripts(scripts)
+        )
 
     attempt = 0
     while True:
@@ -55,7 +73,7 @@ def run_dump(args: argparse.Namespace) -> None:
 
 
 def list_apps(args: argparse.Namespace) -> None:
-    device = get_device(args.serial)
+    device = get_device(args.serial, host=getattr(args, "host", None))
     for app in sorted(device.enumerate_applications(), key=lambda a: a.identifier):
         running = f" [PID {app.pid}]" if app.pid else ""
         print(f"  {app.identifier:<50} {app.name}{running}")

@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from enma import dump
+from enma.core.platforms import Platform
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def harness(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         dump,
         "get_device",
-        lambda _serial: calls.__setitem__("get_device", calls["get_device"] + 1) or "DEVICE",
+        lambda _serial, **_kw: calls.__setitem__("get_device", calls["get_device"] + 1) or "DEVICE",
     )
     monkeypatch.setattr(
         dump,
@@ -50,6 +51,7 @@ def harness(monkeypatch: pytest.MonkeyPatch):
         lambda *a, **kw: calls.__setitem__("loaded", calls["loaded"] + 1) or {},
     )
     monkeypatch.setattr(dump.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(dump, "detect_platform", lambda *_a: Platform.ANDROID)
     return calls
 
 
@@ -130,7 +132,7 @@ def test_keyboard_interrupt_during_attach_stops_cleanly(
 def test_no_type_runs_the_full_dump_set(
     args: argparse.Namespace, harness: dict, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from enma.core.agents import DUMP_AGENTS
+    from enma.core.agents import TAG_DUMP, names
 
     captured: list[list[str]] = []
     monkeypatch.setattr(
@@ -139,4 +141,13 @@ def test_no_type_runs_the_full_dump_set(
     args.type = None
     _outcomes(monkeypatch, [False])
     dump.run_dump(args)
-    assert captured[0] == list(DUMP_AGENTS)
+    assert captured[0] == list(names(TAG_DUMP, platform=Platform.ANDROID))
+
+
+def test_invalid_ios_agent_is_rejected_before_attach(
+    args: argparse.Namespace, harness: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(dump, "detect_platform", lambda *_a: Platform.IOS)
+    with pytest.raises(SystemExit, match="Unsupported agents for ios"):
+        dump.run_dump(args)
+    assert harness["open_session"] == []

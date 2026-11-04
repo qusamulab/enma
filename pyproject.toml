@@ -1,7 +1,7 @@
 [project]
 name = "enma"
 version = "0.2.0"
-description = "Android runtime analysis and research toolkit — powered by Frida"
+description = "Android and iOS runtime analysis and research toolkit — powered by Frida"
 requires-python = ">=3.12"
 dependencies = [
     "frida>=17.24.3",
@@ -60,7 +60,7 @@ ignore = [
 known-first-party = ["enma"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/enma/report.py" = ["E501"]
+"src/enma/report/**/*.py" = ["E501"]
 # Fixture factories return callables/stubs whose precise types are noise.
 "tests/**/*.py" = ["ANN201", "ANN202"]
 

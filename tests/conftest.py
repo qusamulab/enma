@@ -37,7 +37,7 @@ def write_artifact(dump_dir: Path):
 @pytest.fixture(autouse=True)
 def no_external_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     """analyze / repack / ue4 must never shell out during tests."""
-    monkeypatch.setattr("enma.analyze._find", lambda _tool: None)
+    monkeypatch.setattr("enma.analyze.binaries._find", lambda _tool: None)
     monkeypatch.setattr(shutil, "which", lambda _tool, *a, **kw: None)
 
 

@@ -27,6 +27,20 @@ function dumpModule(mod) {
 // ── Find and dump global-metadata.dat ────────────────────────────────────────
 
 function findAndDumpMetadata() {
+    if (Process.platform === "darwin") {
+        if (ObjC.available) {
+            const bundle = ObjC.classes.NSBundle.mainBundle().bundlePath().toString();
+            for (const path of [
+                `${bundle}/Data/Managed/Metadata/global-metadata.dat`,
+                `${bundle}/Frameworks/UnityFramework.framework/Data/Managed/Metadata/global-metadata.dat`,
+            ]) {
+                try { sendFile("global-metadata.dat", File.readAllBytes(path)); return; }
+                catch (_) {}
+            }
+        }
+        log("[il2cpp] Bundled metadata not found; it may be encrypted or relocated");
+        return;
+    }
     // Strategy A: /proc/self/maps
     try {
         const maps = new File("/proc/self/maps", "r");
@@ -81,7 +95,7 @@ function findAndDumpMetadata() {
 // ── IL2CPP API resolver ───────────────────────────────────────────────────────
 
 function resolveIl2Cpp(name, retType, argTypes) {
-    const addr = Module.findExportByName("libil2cpp.so", name);
+    const addr = il2cppMod.findExportByName(name);
     if (!addr) return null;
     return new NativeFunction(addr, retType, argTypes);
 }
@@ -245,16 +259,21 @@ function buildSymbolMap(il2cppBase) {
 
 log("[il2cpp] Agent loaded");
 
-const il2cppMod = Process.findModuleByName("libil2cpp.so");
-if (!il2cppMod) {
-    log("[il2cpp] libil2cpp.so not found — not an IL2CPP app or not yet loaded");
-} else {
-    log(`[il2cpp] Found libil2cpp.so  base=${il2cppMod.base}  size=${il2cppMod.size}`);
-    dumpModule(il2cppMod);
-    findAndDumpMetadata();
-
-    setTimeout(() => {
-        const map = buildSymbolMap(il2cppMod.base);
-        if (map) sendJson("il2cpp_dump.json", map);
-    }, 2000);
-}
+let il2cppMod = null;
+const il2cppObserver = Process.attachModuleObserver({
+    onAdded(mod) {
+        if (il2cppMod !== null) return;
+        if (mod.name !== "libil2cpp.so" && mod.findExportByName("il2cpp_domain_get") === null) return;
+        il2cppMod = mod;
+        // Leave the loader callback before calling into the new runtime.
+        setImmediate(() => {
+            log(`[il2cpp] Found ${mod.name}  base=${mod.base}  size=${mod.size}`);
+            dumpModule(mod);
+            findAndDumpMetadata();
+            setTimeout(() => {
+                const map = buildSymbolMap(mod.base);
+                if (map) sendJson("il2cpp_dump.json", map);
+            }, 2000);
+        });
+    },
+});

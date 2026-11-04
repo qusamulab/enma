@@ -1,38 +1,46 @@
-# Output Files
+# 出力ファイル
 
-| File | Description |
+収集先は `dump -o DIR` で指定し、既定では `./dump` です。
+全ファイルが毎回生成されるわけではなく、対象 API・イベントが観測されたものを保存します。
+
+## 最初に見るもの
+
+| ファイル | 内容 |
 |---|---|
-| `classes_N_*.dex` | Dumped DEX files |
-| `dex_obfuscation_report.json` | Obfuscation ratio (ProGuard / R8 detection) |
-| `libil2cpp.so` | IL2CPP native ELF |
-| `global-metadata.dat` | Unity IL2CPP metadata |
-| `il2cpp_dump.json` | Il2CppDumper-compatible symbol map |
-| `*.dll` | Mono managed assemblies |
-| `asset_N_*.unity3d` | Unity AssetBundles |
-| `tls_connections.json` | TLS SNI hostnames |
-| `crypto_keys.json` | Harvested cryptographic keys |
-| `rsa_private_key.der` | DER-encoded RSA private key |
-| `jni_map.json` | JNI native method registration map |
-| `heap_keys.json` | Live `SecretKey` / `PrivateKey` from heap |
-| `heap_bytes.json` | High-entropy `byte[]` from heap |
-| `heap_prefs.json` | `SharedPreferences` key-value pairs |
-| `heap_http.json` | OkHttp3 `Request` / `Response` objects |
-| `heap_uris.json` | `android.net.Uri` objects |
-| `heap_strings.json` | Credential-related `String` objects |
-| `http_traffic.json` | HTTP requests and responses |
-| `websocket_log.json` | WebSocket frames |
-| `protobuf_log.json` | Decoded Protobuf messages |
-| `binder_log.json` | Binder / IPC transactions |
-| `sqlite_log.json` | SQLite operations |
-| `fileio_log.json` | File I/O operations |
-| `dlopen_log.json` | Dynamic library load log |
-| `dlopen_*.so` | Dumped dynamically loaded libraries |
-| `coverage.json` | Frida Stalker code coverage |
-| `trace.json` | Function call trace |
-| `anti_tamper_log.json` | Anti-tamper bypass events |
-| `safetynet_log.json` | SafetyNet / Play Integrity events |
-| `report.json` | Consolidated analysis report |
-| `report.html` | Self-contained HTML report |
+| `report.html` | `report` が生成する閲覧用 HTML |
+| `report.json` | `analyze` が生成する解析結果 |
+| `ios_app.json` | iOS の Bundle ID、バージョン、モジュール一覧 |
+| `http_traffic.json` | HTTP 観測結果。iOS は URL・メソッドのみ |
+| `sqlite_log.json` / `fileio_log.json` | SQL／ファイル操作 |
 
----
+`analyze DIR` を実行してから `report DIR` を実行します。
+任意の出力先は [コマンド一覧](subcommands.md) を参照してください。
 
+## バイナリとゲーム資産
+
+| ファイル | 内容 |
+|---|---|
+| `classes_N_*.dex` / `dex_obfuscation_report.json` | Android DEX／難読化の情報 |
+| `libil2cpp.so` / `UnityFramework` / `*.dylib` | IL2CPP 等のメモリイメージ。OS・モジュール名で異なる |
+| `global-metadata.dat` / `il2cpp_dump.json` | IL2CPP メタデータ／シンボルマップ |
+| `*.dll` / `asset_*.unity3d` | Mono DLL／Unity AssetBundle |
+| `dlopen_*` | 後からロードされたライブラリのメモリイメージ |
+| `ue4_sdk.json` / `ue4_pak_list.json` / `ue4_pak_*.pak` | Android UE4 の SDK／PAK |
+| `ue4_blueprint_trace.json` | Android UE4 の Blueprint 呼び出し |
+
+メモリイメージは元のファイルと同一とは限らず、そのまま実行・再署名できるものではありません。
+
+## イベントと詳細情報
+
+| ファイル | 内容 |
+|---|---|
+| `crypto_keys.json` / `rsa_private_key.der` | 暗号処理の観測情報。iOS は CommonCrypto が対象 |
+| `tls_connections.json` | Android の TLS SNI |
+| `jni_map.json` | Android の JNI マッピング |
+| `heap_*.json` | Android Java ヒープのキー・文字列・設定等 |
+| `websocket_log.json` / `protobuf_log.json` / `binder_log.json` | Android の通信・IPC |
+| `dlopen_log.json` / `dlsym_log.json` | 動的ライブラリ／シンボルの解決 |
+| `coverage.json` / `trace.json` | コードカバレッジ／関数呼び出し |
+| `anti_tamper_log.json` / `safetynet_log.json` | Android の整合性確認・端末認証関連 |
+
+生のイベントをすべて HTML に表示するわけではありません。詳細は元の JSON を確認してください。

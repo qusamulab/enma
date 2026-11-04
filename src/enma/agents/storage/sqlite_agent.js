@@ -134,7 +134,28 @@ function flush() {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 log("[sqlite] Agent loaded");
-Java.performNow(hookSQLiteDatabase);
+if (Process.platform !== "darwin" && Java.available) {
+    Java.performNow(hookSQLiteDatabase);
+} else {
+    // Public SQLite C API used by iOS apps, including Core Data's SQLite store.
+    const hooked = new Set();
+    globalThis.sqliteObserver = Process.attachModuleObserver({
+        onAdded(mod) {
+            for (const symbol of ["sqlite3_exec", "sqlite3_prepare_v2", "sqlite3_prepare_v3"]) {
+                const address = mod.findExportByName(symbol);
+                if (address === null || hooked.has(address.toString())) continue;
+                hooked.add(address.toString());
+                Interceptor.attach(address, {
+                    onEnter(args) {
+                        try { record(symbol, args[0].toString(), args[1].readUtf8String(), null, null); }
+                        catch (_) {}
+                    },
+                });
+                log(`[sqlite] Hooked ${symbol}`);
+            }
+        },
+    });
+}
 
 setInterval(flush, 10000);
 setTimeout(flush, 60000);

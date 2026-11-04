@@ -163,3 +163,14 @@ def test_mempatch_short_v_stays_value_not_verbose(parser: argparse.ArgumentParse
 
 def test_mempatch_long_verbose_works(parser: argparse.ArgumentParser) -> None:
     assert parser.parse_args(["mempatch", "com.x", "0x1", "--verbose"]).verbose is True
+
+
+def test_ios_tcp_options_are_available(parser: argparse.ArgumentParser) -> None:
+    ns = parser.parse_args(["dump", "Gadget", "--host", "localhost:27042", "--platform", "ios"])
+    assert ns.host == "localhost:27042"
+    assert ns.platform == "ios"
+
+
+def test_device_id_and_host_are_mutually_exclusive(parser: argparse.ArgumentParser) -> None:
+    with pytest.raises(SystemExit):
+        parser.parse_args(["list", "-s", "udid", "--host", "localhost"])
