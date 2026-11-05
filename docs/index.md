@@ -1,12 +1,15 @@
-# enma を使い始める
+# Getting started with enma
 
-enma は [Frida](https://frida.re) を使う Android・iOS 向けランタイム解析ツールです。
-アプリを動かしながら情報を収集し、JSON と HTML レポートにまとめます。
-自分が所有する、または解析の許可を得たアプリを対象にしてください。
+enma is an Android and iOS runtime analysis toolkit powered by [Frida](https://frida.re).
+Collect information while an app runs, then turn it into JSON and HTML reports.
+Use it with apps you own or have permission to analyze.
 
-## 1. インストール
+This site defaults to English. Use the language menu in the header to switch to Japanese.
+The switch opens the corresponding page in the other language.
 
-Python 3.12 以降と [uv](https://docs.astral.sh/uv/) が必要です。
+## 1. Install
+
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/qusamulab/enma
@@ -15,25 +18,25 @@ uv sync
 uv run enma --help
 ```
 
-## 2. 端末を準備する
+## 2. Prepare your device
 
-| 対象 | 準備 |
+| Target | Preparation |
 |---|---|
-| Android | ADB と root 化済み端末／エミュレーター。`uv run enma setup` で frida-server を配置 |
-| iOS | Frida に対応した脱獄端末に frida-server を導入。USB 接続とペアリングを確認 |
-| Gadget | 自分で組み込んだ Frida Gadget に TCP 接続。OS は `--platform` で指定 |
+| Android | Install ADB and connect a rooted device or emulator. Deploy frida-server with `uv run enma setup` |
+| iOS | Install frida-server on a compatible jailbroken device. Check USB connectivity and pairing |
+| Gadget | Connect over TCP to an app with Frida Gadget you have prepared. Specify its OS with `--platform` |
 
-具体的な手順と対応機能は [Android・iOS の準備](platforms.md) を参照してください。
+See [Platform setup](platforms.md) for instructions and the support matrix.
 
-## 3. アプリから収集する
+## 3. Collect artifacts
 
-まずアプリ一覧で Android のパッケージ名、または iOS の Bundle ID を調べます。
+List apps to find an Android package name or iOS bundle identifier.
 
 ```bash
 uv run enma list
 ```
 
-対象アプリを起動してから、必要なエージェントを選んで実行します。
+Start the target app, then choose the agents you need.
 
 === "Android"
 
@@ -47,26 +50,26 @@ uv run enma list
     uv run enma dump com.example.app -t ios_app ios_http sqlite -o ./dump --timeout 30
     ```
 
-アプリを起動する場合は `--spawn`、起動を待つ場合は `--watch` を追加します。
-`-t` を省略すると、その OS に対応する全エージェントを読み込みます。
-`coverage` と `tracer` は負荷が高いため、最初は必要なものだけを選ぶことを勧めます。
+Add `--spawn` to start the app, or `--watch` to wait for it to start.
+Omitting `-t` loads all agents supported on the target OS.
+`coverage` and `tracer` can be expensive, so start with a small selection.
 
-## 4. レポートを見る
+## 4. View the report
 
 ```bash
 uv run enma analyze ./dump
 uv run enma report ./dump
-open ./dump/report.html   # macOS。ほかのOSではブラウザーで開く
+open ./dump/report.html   # macOS; on other systems, open the file in a browser
 ```
 
-`analyze` と `report` は端末に接続せずに使えます。
-`jadx`、`Il2CppDumper`、`strings` は任意です。未導入の解析処理はスキップします。
-生成されるファイルの意味は [出力ファイル](output-files.md) にまとめています。
+`analyze` and `report` work without a connected device.
+`jadx`, `Il2CppDumper`, and `strings` are optional. Steps that need missing tools are skipped.
+See [Output files](output-files.md) for the artifacts produced by each step.
 
-## 次に読む
+## Next steps
 
-- [コマンド一覧](subcommands.md)：引数、メモリ操作、Unity・UE4 の使い方
-- [エージェント一覧](agents.md)：収集内容と対応 OS
-- [トラブルシューティング](troubleshooting.md)：接続・出力・公開サイトの問題
-- [構成とデータの流れ](architecture.md)：コードを読むための全体像
-- [開発ガイド](development.md)：検証手順と機能の追加方法
+- [Command reference](subcommands.md): arguments, memory operations, Unity, and UE4
+- [Agent reference](agents.md): collected data and supported platforms
+- [Troubleshooting](troubleshooting.md): connection, output, and documentation problems
+- [Architecture](architecture.md): components and data flow
+- [Development guide](development.md): validation and adding features

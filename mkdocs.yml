@@ -1,5 +1,5 @@
 site_name: enma
-site_description: Android・iOS ランタイム解析ツール
+site_description: Android and iOS runtime analysis toolkit
 site_url: https://qusamulab.github.io/enma/
 repo_url: https://github.com/qusamulab/enma
 repo_name: qusamulab/enma
@@ -7,7 +7,7 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
-  language: ja
+  language: en
   palette:
     - scheme: default
       primary: indigo
@@ -51,15 +51,37 @@ validation:
 
 plugins:
   - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: ja
+          name: 日本語
+          build: true
+          site_description: Android・iOS ランタイム解析ツール
+          nav_translations:
+            Getting started: はじめに
+            Usage: 使い方
+            Platform setup: Android・iOS の準備
+            Command reference: コマンド一覧
+            Agent reference: エージェント一覧
+            Output files: 出力ファイル
+            Troubleshooting: トラブルシューティング
+            Development: 開発
+            Architecture: 構成とデータの流れ
+            Development guide: 開発ガイド
 
 nav:
-  - はじめに: index.md
-  - 使い方:
-      - Android・iOS の準備: platforms.md
-      - コマンド一覧: subcommands.md
-      - エージェント一覧: agents.md
-      - 出力ファイル: output-files.md
-      - トラブルシューティング: troubleshooting.md
-  - 開発:
-      - 構成とデータの流れ: architecture.md
-      - 開発ガイド: development.md
+  - Getting started: index.md
+  - Usage:
+      - Platform setup: platforms.md
+      - Command reference: subcommands.md
+      - Agent reference: agents.md
+      - Output files: output-files.md
+      - Troubleshooting: troubleshooting.md
+  - Development:
+      - Architecture: architecture.md
+      - Development guide: development.md

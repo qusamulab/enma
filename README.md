@@ -1,14 +1,19 @@
 # enma
 
-[Frida](https://frida.re) を使う Android・iOS ランタイム解析ツール。
-アプリから実行時の情報を収集し、JSON と HTML レポートにまとめます。
-所有する、または解析の許可を得たアプリを対象にしてください。
+English | [日本語](README.ja.md)
 
-**[ドキュメント](https://qusamulab.github.io/enma/) · [Android・iOS の準備](docs/platforms.md) · [コマンド一覧](docs/subcommands.md)**
+An Android and iOS runtime analysis toolkit powered by [Frida](https://frida.re).
+Collect runtime artifacts from apps and turn them into JSON and HTML reports.
+Use it with apps you own or have permission to analyze.
 
-## インストール
+**[Documentation](https://qusamulab.github.io/enma/) · [Platform setup](docs/platforms.md) · [Command reference](docs/subcommands.md)**
 
-Python 3.12 以降と [uv](https://docs.astral.sh/uv/) が必要です。
+The documentation defaults to English. Use the language menu to switch between
+English and [日本語](https://qusamulab.github.io/enma/ja/).
+
+## Install
+
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/qusamulab/enma
@@ -16,31 +21,31 @@ cd enma
 uv sync
 ```
 
-Android は ADB と root 化済み端末／エミュレーターを用意し、`uv run enma setup` を実行します。
-iOS は Frida 対応の脱獄端末、または自分で Gadget を組み込んだアプリを用意します。
-[OS 別の手順と対応範囲](docs/platforms.md) を先に確認してください。
+For Android, install ADB, connect a rooted device or emulator, and run `uv run enma setup`.
+For iOS, use a Frida-compatible jailbroken device or an app with Gadget that you have prepared yourself.
+Start with the [platform setup and support matrix](docs/platforms.md).
 
-## 収集してレポートを見る
+## Collect artifacts and generate a report
 
 ```bash
 uv run enma list
 
-# Android：起動済みアプリから収集
+# Android: attach to a running app
 uv run enma dump com.example.app -t dex http sqlite -o ./dump --timeout 30
 
-# iOS：必要なエージェントを選択
+# iOS: select the agents you need
 uv run enma dump com.example.iosapp -t ios_app ios_http sqlite -o ./dump --timeout 30
 
 uv run enma analyze ./dump
 uv run enma report ./dump
-# ./dump/report.html をブラウザーで開く
+# Open ./dump/report.html in a browser
 ```
 
-OS は自動判定します。`-t` を省略すると、その OS に対応する全エージェントを実行します。
-iOS の HTTP 収集は NSURLSession の URL・メソッドが対象で、本文・レスポンスは含みません。
-DEX、APK リパック、UE4 などは Android 専用です。iOS 実機での検証は別途必要です。
+The OS is detected automatically. Omitting `-t` runs all agents supported on that OS.
+iOS HTTP collection captures NSURLSession URLs and methods, without bodies or responses.
+DEX, APK repacking, and UE4 support are Android-only. iOS behavior still needs device testing.
 
-## 開発・ドキュメント
+## Development and documentation
 
 ```bash
 uv sync --group docs
@@ -52,7 +57,7 @@ uv run mkdocs build --strict
 uv run mkdocs serve
 ```
 
-[開発ガイド](docs/development.md) · [構成とデータの流れ](docs/architecture.md) · [困ったとき](docs/troubleshooting.md)
+[Development guide](docs/development.md) · [Architecture](docs/architecture.md) · [Troubleshooting](docs/troubleshooting.md)
 
-収集ファイルには暗号キー等の機密情報が含まれる場合があります。適切に管理してください。
+Collected files can contain sensitive material such as cryptographic keys. Handle them appropriately.
 [MIT License](LICENSE)

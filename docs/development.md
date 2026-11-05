@@ -1,37 +1,37 @@
-# 開発ガイド
+# Development guide
 
-## ファイル配置
+## Project layout
 
 ```text
 src/enma/
-├── cli.py                 # 引数と処理の振り分け
-├── core/                  # 接続、OS判定、登録表、スクリプト準備
-├── dump.py / mem.py       # 共通のランタイム操作
-├── ue4.py                 # Android向けUE4実行処理
-├── frida_server.py        # Android向けsetup
-├── repack.py              # Android APKへのGadget組み込み
-├── unity.py               # オフラインAssetBundle展開
+├── cli.py                 # Argument parsing and dispatch
+├── core/                  # Connections, platforms, registry, script preparation
+├── dump.py / mem.py       # Shared runtime operations
+├── ue4.py                 # Android UE4 runtime operations
+├── frida_server.py        # Android setup
+├── repack.py              # Android APK Gadget injection
+├── unity.py               # Offline AssetBundle extraction
 ├── analyze/
-│   ├── __init__.py        # analyze_dump() と解析順序
-│   ├── helpers.py         # JSON・集計・外部ツール
-│   ├── binaries.py        # DEX、IL2CPP、DLL、ネイティブ文字列
-│   ├── events.py          # 通信・ストレージ・アプリ情報
-│   └── ue4.py             # UE4のオフライン解析
+│   ├── __init__.py        # analyze_dump() and analyzer order
+│   ├── helpers.py         # JSON, counting, external tools
+│   ├── binaries.py        # DEX, IL2CPP, DLLs, native strings
+│   ├── events.py          # Network, storage, app metadata
+│   └── ue4.py             # Offline UE4 analysis
 ├── report/
 │   ├── __init__.py        # generate_html() / render_report()
-│   ├── components.py      # 共通HTML部品
-│   ├── sections.py        # セクション描画と登録表
-│   └── assets/            # レポート用CSS・JS
-└── agents/                # 対象アプリ内で実行するJS
-    ├── _runtime.js        # 共通Frida API互換処理
-    └── ios/               # iOS固有エージェント
+│   ├── components.py      # Shared HTML components
+│   ├── sections.py        # Section renderers and registry
+│   └── assets/            # Report CSS and JavaScript
+└── agents/                # JavaScript executing inside the target app
+    ├── _runtime.js        # Shared Frida API compatibility
+    └── ios/               # iOS-specific agents
 ```
 
-公開エントリーポイントは `enma.analyze.analyze_dump` と
-`enma.report.generate_html` / `render_report` のままです。
-配置変更の理由と依存方向は [構成とデータの流れ](architecture.md) を参照してください。
+Public entry points remain `enma.analyze.analyze_dump` and
+`enma.report.generate_html` / `render_report`.
+See [Architecture](architecture.md) for the component boundaries and dependency direction.
 
-## 検証
+## Validation
 
 ```bash
 uv sync --group docs
@@ -42,29 +42,29 @@ node --test tests/agents.test.cjs
 uv run mkdocs build --strict
 ```
 
-Python テストは実機不要です。外部ツール検索、ネットワーク、ホームディレクトリを
-fixture で差し替え、ローカルの Frida キャッシュや端末へアクセスしません。
-JavaScript テストは Node.js 22 以降で、Frida API を模擬してフック処理を検証します。
-実機での API・OS バージョンごとの差は、別途確認が必要です。
+Python tests do not need a device. Fixtures replace external tool lookups, network access,
+and the home directory so tests do not touch real device connections or Frida caches.
+JavaScript tests use Node.js 22+ and mocked Frida APIs to verify hook behavior.
+Differences between actual OS and API versions require separate device testing.
 
-## エージェントを追加する
+## Add an agent
 
-1. `agents/{category}/{name}_agent.js` を作る。
-2. `core/agents.py` の `_AGENTS` に名前、カテゴリ、タグ、対応 OS を登録する。
-3. 出力を解析する関数を `analyze/` の該当モジュールに追加し、`_ANALYZERS` に登録する。
-4. `report/sections.py` に描画処理を追加し、`_RENDERERS` に登録する。
-5. [エージェント一覧](agents.md) と [対応範囲](platforms.md) を更新する。
-6. 模擬 API と出力を使って処理・非対応 OS の拒否・解析結果を検証する。
+1. Create `agents/{category}/{name}_agent.js`.
+2. Register the name, category, tags, and supported platforms in `core/agents.py`.
+3. Add an analyzer to the appropriate `analyze/` module and register it in `_ANALYZERS`.
+4. Add a renderer in `report/sections.py` and register it in `_RENDERERS`.
+5. Update both translations of [Agent reference](agents.md) and [Platform setup](platforms.md).
+6. Verify hook behavior, incompatible-platform rejection, and analysis results using mocked APIs and artifacts.
 
 ```python
 _a("example", "ios", TAG_DUMP, platforms=(Platform.IOS,)),
 ```
 
-`TAG_DUMP` は `dump` 用、`TAG_UE4` は `ue4` 用、`TAG_MEM` はメモリ操作用です。
-登録表と JS ファイル、ドキュメントの見出しが一致することをテストで確認します。
-Java／Objective-C ブリッジをエージェントへコピーせず、`core/scripts.py` に任せてください。
+`TAG_DUMP` is for `dump`, `TAG_UE4` for `ue4`, and `TAG_MEM` for memory operations.
+Tests check the registry against JavaScript files and agent headings in both documentation languages.
+Let `core/scripts.py` provide runtime bridges instead of copying Java or Objective-C bridges into agents.
 
-## ドキュメントの編集と公開
+## Edit and publish documentation
 
 ```bash
 uv sync --group docs
@@ -72,10 +72,23 @@ uv run mkdocs serve
 uv run mkdocs build --strict
 ```
 
-設定は `mkdocs.yml`、本文は `docs/` にあります。
-README は入口として短く保ち、手順は各ガイドへ集約します。
-ページ間のリンクには `platforms.md` のような相対パスを使ってください。
+Configuration lives in `mkdocs.yml`, and pages live in `docs/`.
+Keep the README short and place detailed instructions in the relevant guide.
 
-`main` のドキュメント・設定変更を GitHub Actions がビルドし、GitHub Pages へ公開します。
-初回はリポジトリの Pages の公開元を **GitHub Actions** に設定します。
-公開先は [qusamulab.github.io/enma](https://qusamulab.github.io/enma/) です。
+English is the default language. Each page has two source files:
+
+| Source | Published path |
+|---|---|
+| `docs/index.md` | `/enma/` |
+| `docs/index.ja.md` | `/enma/ja/` |
+| `docs/platforms.md` | `/enma/platforms/` |
+| `docs/platforms.ja.md` | `/enma/ja/platforms/` |
+
+The `mkdocs-static-i18n` plugin builds both languages and provides the Material language menu.
+Switching languages opens the corresponding page. Navigation labels are translated in `mkdocs.yml`.
+Update both versions when a page changes. Use relative links such as `platforms.md` in both
+languages; the plugin resolves them to the active language, so do not add `.ja` to page links.
+
+GitHub Actions builds documentation and configuration changes on `main` and deploys them to GitHub Pages.
+For initial setup, select **GitHub Actions** as the repository's Pages source.
+The site is published at [qusamulab.github.io/enma](https://qusamulab.github.io/enma/).

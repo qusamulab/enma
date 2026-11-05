@@ -1,49 +1,56 @@
-# トラブルシューティング
+# Troubleshooting
 
-## 端末が見つからない
+## Device not found
 
-- Android：`adb devices` で接続と USB デバッグの許可を確認し、`uv run enma setup` を実行する。
-- iOS：ペアリング、USB 接続、frida-server の稼働を確認する。`setup` は Android 専用。
-- 共通：`uv run frida-ps -Uai` で接続を確認し、ホストとサーバーの Frida バージョンを合わせる。
-- TCP：`--host HOST:PORT` を使う。端末 ID の `-s` と同時には指定できない。
+- Android: check `adb devices`, authorize USB debugging, and run `uv run enma setup`.
+- iOS: check pairing, USB connectivity, and frida-server. `setup` is Android-only.
+- Both: verify connectivity with `uv run frida-ps -Uai` and match the host and server Frida versions.
+- TCP: use `--host HOST:PORT`. It cannot be combined with the device ID option `-s`.
 
-## アプリにアタッチできない
+## Cannot attach to an app
 
-`uv run enma list` で識別子を確認してからアプリを起動します。
-停止中なら `--spawn`、手動起動を待つなら `--watch` を使ってください。
-数字のターゲットは PID として扱います。Gadget では一覧に表示されたプロセス名を指定します。
+Find the identifier with `uv run enma list`, then start the app.
+Use `--spawn` if it is stopped, or `--watch` to wait for a manual launch.
+Numeric targets are treated as PIDs. For Gadget, use the process name from the listing.
 
-## OS を判定できない／エージェントが非対応と言われる
+## OS detection fails or an agent is unsupported
 
-Gadget 等で OS 情報が取得できない場合だけ `--platform android` または `--platform ios` を指定します。
-`dex`、`jni`、`http` 等の Android エージェントは iOS では実行できません。
-iOS の通信には `ios_http` を指定してください。全体は [対応範囲](platforms.md) を参照してください。
+Use `--platform android` or `--platform ios` when endpoints such as Gadget cannot provide OS information.
+Android agents such as `dex`, `jni`, and `http` cannot run on iOS.
+Use `ios_http` for iOS networking. See [Platform setup](platforms.md) for the support matrix.
 
-## 出力が少ない／JSON が生成されない
+## Few artifacts or missing JSON files
 
-エージェントを読み込んだ後、対象アプリで通信やファイルアクセス等の操作を行ってください。
-イベントがない種類の JSON は生成されない場合があります。
-多くのエージェントは定期保存を行います。Ctrl+C／`--timeout` は終了前に保存を試みますが、
-クラッシュやプロセス強制終了では未保存の内容を回収できません。
-iOS の `ios_http` は NSURLSession のタスク作成を観測します。通信本文やレスポンスは取得しません。
+Interact with the app after loading the agents to trigger networking, file access, or other operations.
+Some JSON files are only created when matching events occur.
+Most agents save periodically, and Ctrl+C or `--timeout` attempts to flush before detaching.
+Crashes or forced termination can lose buffered events.
+iOS `ios_http` observes NSURLSession task creation without bodies or responses.
 
-## report.json が見つからない
+## report.json not found
 
-同じディレクトリに対して、先に解析を実行します。
+Analyze the same directory before generating a report.
 
 ```bash
 uv run enma analyze ./dump
 uv run enma report ./dump
 ```
 
-`jadx` 等がない場合、該当の解析だけがスキップされます。
-空の収集ディレクトリでも HTML は生成できますが、収集済みのセクションは表示されません。
+Missing optional tools such as `jadx` only skip the relevant analysis step.
+An empty dump directory can still produce HTML, but it will not contain collected-data sections.
 
-## 公開ドキュメントが404になる
+## Documentation returns 404
 
-現在のURLは [https://qusamulab.github.io/enma/](https://qusamulab.github.io/enma/) です。
-旧 `ykus4.github.io` のブックマークは更新してください。
+The current URL is [https://qusamulab.github.io/enma/](https://qusamulab.github.io/enma/).
+Update bookmarks pointing to the old `ykus4.github.io` domain.
 
-管理者は GitHub の **Actions → Deploy documentation** と **Settings → Pages** を確認します。
-公開元は GitHub Actions です。ビルドの成功だけではサイトは公開されず、Pages のデプロイ成功が必要です。
-ローカルでは `uv sync --group docs` と `uv run mkdocs serve` で閲覧できます。
+Administrators should check **Actions → Deploy documentation** and **Settings → Pages** on GitHub.
+The source should be GitHub Actions. A successful build alone does not publish the site;
+the Pages deployment must also succeed.
+Preview locally with `uv sync --group docs` and `uv run mkdocs serve`.
+
+## Switch the documentation language
+
+Use the language menu in the site header to choose English or 日本語.
+English is available at the site root, and Japanese is under `/ja/`.
+The switch preserves the page you are reading. Local `mkdocs serve` previews support both languages too.
