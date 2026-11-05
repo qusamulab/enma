@@ -80,10 +80,13 @@ def test_unknown_agent_error_is_a_key_error() -> None:
     assert issubclass(UnknownAgentError, KeyError)
 
 
-def test_every_agent_is_documented() -> None:
-    """docs/agents.md must not drift from the registry either."""
-    doc = Path(__file__).parents[1] / "docs" / "agents.md"
-    if not doc.is_file():  # not shipped in the installed package
+@pytest.mark.parametrize("filename", ["agents.md", "agents.ja.md"])
+def test_every_agent_is_documented(filename: str) -> None:
+    """Both translations must list every registered agent."""
+    docs = Path(__file__).parents[1] / "docs"
+    if not docs.is_dir():  # not shipped in the installed package
         pytest.skip("docs/ not present")
+    doc = docs / filename
+    assert doc.is_file(), f"missing agent reference: {filename}"
     documented = set(re.findall(r"^### `([a-z0-9_]+)`", doc.read_text(), re.MULTILINE))
     assert documented == {a.name for a in _ALL}
