@@ -34,7 +34,7 @@ jobs:
       - uses: actions/configure-pages@v5
       - run: uv sync --only-group docs
       - run: uv run --no-sync mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
       - uses: actions/deploy-pages@v4
