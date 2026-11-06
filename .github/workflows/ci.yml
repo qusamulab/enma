@@ -26,7 +26,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync
       - run: uv run pytest
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: node --test tests/agents.test.cjs
